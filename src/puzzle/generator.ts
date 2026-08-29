@@ -105,11 +105,14 @@ function randomPathSolution(rows: number, cols: number, rng: Rng): Board {
     for (let attempt = 0; attempt < 30; attempt++) {
         const path = findPath(rows, cols, rng, minLen)
         if (path && path.length >= 2) {
-            return stampPath(rows, cols, path, rng)
+            const board = stampPath(rows, cols, path, rng)
+            // Reject paths that leave too much of the grid empty, so we restart
+            // early instead of paying for a full clue-stripping solve.
+            if (!hasTooManyEmptyLines(board, rows, cols)) return board
         }
     }
 
-    // Fallback: full snake path covering every cell.
+    // Fallback: full snake path covering every cell (never has empty lines).
     const path: number[] = []
     for (let r = 0; r < rows; r++) {
         if (r % 2 === 0) {
@@ -119,6 +122,35 @@ function randomPathSolution(rows: number, cols: number, rng: Rng): Board {
         }
     }
     return stampPath(rows, cols, path, rng)
+}
+
+/** True when the board has more than one entirely-empty row or column. */
+function hasTooManyEmptyLines(board: Board, rows: number, cols: number): boolean {
+    let emptyRows = 0
+    for (let r = 0; r < rows; r++) {
+        let hasTrack = false
+        for (let c = 0; c < cols; c++) {
+            if (board[indexOf(r, c, cols)] !== EMPTY) {
+                hasTrack = true
+                break
+            }
+        }
+        if (!hasTrack) emptyRows++
+    }
+
+    let emptyCols = 0
+    for (let c = 0; c < cols; c++) {
+        let hasTrack = false
+        for (let r = 0; r < rows; r++) {
+            if (board[indexOf(r, c, cols)] !== EMPTY) {
+                hasTrack = true
+                break
+            }
+        }
+        if (!hasTrack) emptyCols++
+    }
+
+    return emptyRows > 1 || emptyCols > 1
 }
 
 function findPath(rows: number, cols: number, rng: Rng, minLen: number): number[] | null {
