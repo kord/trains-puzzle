@@ -368,7 +368,7 @@ export default function App() {
 
       <p className="hint">
         Left-click cycles dots through pieces · Drag to paint · Right-click marks empty (X) ·
-        Right-drag from an X erases · Press D for dot, X for cross.
+        Right-drag from an X erases
       </p>
 
       {showWin && (
