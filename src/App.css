@@ -1,0 +1,364 @@
+:root {
+  --track: #3a3542;
+  --track-soft: #b8b2c2;
+  --ok: #2e9e5b;
+  --few: #9a94a6;
+  --tight: #d99a1b;
+  --many: #d64545;
+  --ok-bg: rgba(46, 158, 91, 0.15);
+  --clue-bg: rgba(170, 59, 255, 0.08);
+  --invalid-bg: rgba(214, 69, 69, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --track: #e8e4f0;
+    --track-soft: #7a7488;
+    --clue-bg: rgba(192, 132, 252, 0.14);
+    --invalid-bg: rgba(230, 80, 80, 0.18);
+  }
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 24px 16px 56px;
+}
+
+.app-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.5px;
+}
+
+.mode-switch,
+.size-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mode-switch button,
+.size-controls button {
+  padding: 6px 14px;
+  font-size: 15px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mode-switch button.active,
+.size-controls button.active {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.control-label {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.palette {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.palette button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.palette button:hover {
+  background: var(--accent-bg);
+}
+
+.palette button.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* On mouse-driven devices the palette is unnecessary: right-click always
+   marks a cell empty. It remains visible on touch screens. */
+@media (pointer: fine) {
+  .palette {
+    display: none;
+  }
+}
+
+.board-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 4px;
+}
+
+.board {
+  display: grid;
+  gap: 2px;
+  user-select: none;
+  --cell: clamp(28px, 9vw, 46px);
+  --hdr: clamp(26px, 8vw, 38px);
+}
+
+.count-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-h);
+}
+
+.count-hint.ok {
+  color: var(--ok);
+}
+
+.count-hint.few {
+  color: var(--few);
+}
+
+.count-hint.tight {
+  color: var(--tight);
+}
+
+.count-hint.many {
+  color: var(--many);
+}
+
+.cell {
+  width: var(--cell);
+  height: var(--cell);
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 3px;
+  cursor: pointer;
+  display: block;
+}
+
+.cell:hover {
+  background: var(--accent-bg);
+}
+
+.cell.clue {
+  background: var(--clue-bg);
+  cursor: default;
+}
+
+.cell.invalid {
+  background: var(--invalid-bg);
+}
+
+.glyph {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.glyph-piece {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.rot-90 {
+  transform: rotate(90deg);
+}
+
+.rot-180 {
+  transform: rotate(180deg);
+}
+
+.rot-270 {
+  transform: rotate(270deg);
+}
+
+.glyph-dot {
+  fill: var(--track-soft);
+}
+
+.glyph-x {
+  stroke: var(--track-soft);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+
+@media (prefers-color-scheme: dark) {
+  .glyph-piece {
+    filter: invert(1);
+  }
+}
+
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cal-head span {
+  min-width: 170px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.cal-head button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-h);
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 38px);
+  gap: 2px;
+}
+
+.cal-weekday {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text);
+  padding: 2px 0;
+}
+
+.cal-day {
+  position: relative;
+  height: 38px;
+  border: 1px solid transparent;
+  background: var(--bg);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.cal-day:hover:not(:disabled) {
+  background: var(--accent-bg);
+}
+
+.cal-day:disabled {
+  color: var(--border);
+  cursor: default;
+}
+
+.cal-day.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cal-day.today {
+  border-color: var(--accent);
+}
+
+.cal-day.solved {
+  background: var(--ok-bg);
+}
+
+.cal-check {
+  position: absolute;
+  right: 3px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--ok);
+}
+
+.cal-check-easy {
+  top: 2px;
+}
+
+.cal-check-medium {
+  top: 14px;
+}
+
+.cal-check-hard {
+  top: 26px;
+}
+
+.win-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.win-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 32px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.win-card h2 {
+  margin: 0 0 8px;
+}
+
+.win-card p {
+  margin: 0 0 20px;
+  color: var(--text);
+}
+
+.win-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.win-actions button {
+  padding: 8px 16px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.win-actions button:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.hint {
+  font-size: 14px;
+  color: var(--text);
+  margin: 0;
+}
