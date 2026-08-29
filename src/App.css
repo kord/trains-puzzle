@@ -60,6 +60,10 @@
   cursor: pointer;
 }
 
+.calendar .cal-grid .cal-day {
+  padding: 0;
+}
+
 .mode-switch button.active,
 .size-controls button.active {
   border-color: var(--accent-border);
@@ -281,6 +285,7 @@
   cursor: pointer;
   color: var(--text-h);
   font-size: 14px;
+  text-align: center;
 }
 
 .cal-day:hover:not(:disabled) {
@@ -308,8 +313,8 @@
 .cal-check {
   position: absolute;
   right: 3px;
-  font-size: 10px;
-  line-height: 1;
+  width: 12px;
+  height: 12px;
   color: var(--ok);
 }
 

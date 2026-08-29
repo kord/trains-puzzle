@@ -12,6 +12,21 @@ interface CalendarProps {
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
+function SolvedCheck({ className, label }: { className: string; label: string }) {
+    return (
+        <svg className={className} viewBox="0 0 12 12" role="img" aria-label={label}>
+            <path
+                d="M2.2 6.4 L4.8 9 L9.9 3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    )
+}
+
 export function Calendar({
     selected,
     today,
@@ -95,19 +110,16 @@ export function Calendar({
                         >
                             {parseDateKey(key).getDate()}
                             {solvedEasy.has(key) && (
-                                <span className="cal-check cal-check-easy" title="Easy solved">
-                                    ✓
-                                </span>
+                                <SolvedCheck className="cal-check cal-check-easy" label="Easy solved" />
                             )}
                             {solvedMedium.has(key) && (
-                                <span className="cal-check cal-check-medium" title="Medium solved">
-                                    ✓
-                                </span>
+                                <SolvedCheck
+                                    className="cal-check cal-check-medium"
+                                    label="Medium solved"
+                                />
                             )}
                             {solvedHard.has(key) && (
-                                <span className="cal-check cal-check-hard" title="Hard solved">
-                                    ✓
-                                </span>
+                                <SolvedCheck className="cal-check cal-check-hard" label="Hard solved" />
                             )}
                         </button>
                     )

@@ -16,9 +16,9 @@ export const DAILY_SIZES: readonly DailySize[] = [EASY_SIZE, MEDIUM_SIZE, HARD_S
 export const PRACTICE_SIZES: readonly PracticeSize[] = [PRACTICE_EASY_SIZE, PRACTICE_HARD_SIZE]
 
 export const DAILY_SIZE_LABELS: Record<DailySize, string> = {
-    [EASY_SIZE]: `${EASY_SIZE}×${EASY_SIZE} Easy`,
-    [MEDIUM_SIZE]: `${MEDIUM_SIZE}×${MEDIUM_SIZE} Medium`,
-    [HARD_SIZE]: `${HARD_SIZE}×${HARD_SIZE} Hard`,
+    [EASY_SIZE]: `Easy (${EASY_SIZE}×${EASY_SIZE})`,
+    [MEDIUM_SIZE]: `Medium (${MEDIUM_SIZE}×${MEDIUM_SIZE})`,
+    [HARD_SIZE]: `Hard (${HARD_SIZE}×${HARD_SIZE})`,
 }
 
 export const PRACTICE_SIZE_LABELS: Record<PracticeSize, string> = {

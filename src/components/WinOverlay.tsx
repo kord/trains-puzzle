@@ -10,7 +10,6 @@ export function WinOverlay({ onDismiss, onNew }: WinOverlayProps) {
                 <h2>Solved! 🎉</h2>
                 <p>You laid the track correctly.</p>
                 <div className="win-actions">
-                <div className="win-actions">
                     <button type="button" onClick={onDismiss}>
                         Keep playing
                     </button>
