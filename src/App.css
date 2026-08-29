@@ -6,7 +6,7 @@
   --tight: #d99a1b;
   --many: #d64545;
   --ok-bg: rgba(46, 158, 91, 0.15);
-  --clue-bg: rgba(170, 59, 255, 0.08);
+  --clue-bg: rgba(230, 57, 70, 0.08);
   --invalid-bg: rgba(214, 69, 69, 0.12);
 }
 
@@ -14,7 +14,7 @@
   :root {
     --track: #e8e4f0;
     --track-soft: #7a7488;
-    --clue-bg: rgba(192, 132, 252, 0.14);
+    --clue-bg: rgba(255, 107, 107, 0.14);
     --invalid-bg: rgba(230, 80, 80, 0.18);
   }
 }
@@ -36,8 +36,14 @@
 
 .app-header h1 {
   margin: 0;
-  font-size: 30px;
+  font-size: 40px;
+  font-weight: 800;
+  padding: 10px;
   letter-spacing: -0.5px;
+  background: linear-gradient(90deg, #e63946 10%, #ff8c42 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .mode-switch,
