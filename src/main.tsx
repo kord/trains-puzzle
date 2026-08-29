@@ -17,3 +17,4 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     })
   })
 }
+
