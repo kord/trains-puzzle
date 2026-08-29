@@ -12,6 +12,7 @@ import {
   isSolved,
   markX,
   paintTool,
+  parseDateKey,
   todayKey,
   type Tool,
 } from './game/helpers'
@@ -89,6 +90,7 @@ export default function App() {
   const [daily, setDaily] = useState<DayRecord>(() => loadOrCreateDaily(storage, EASY_SIZE, today))
   const [practice, setPractice] = useState<DayRecord | null>(null)
   const [showWin, setShowWin] = useState(false)
+  const [calendarOpen, setCalendarOpen] = useState(false)
 
   const record = mode === 'daily' ? daily : practice
   const solved = record?.solved ?? false
@@ -116,6 +118,16 @@ export default function App() {
   const solvedEasy = new Set(getSolvedDates(storage, EASY_SIZE))
   const solvedMedium = new Set(getSolvedDates(storage, MEDIUM_SIZE))
   const solvedHard = new Set(getSolvedDates(storage, HARD_SIZE))
+
+  const dateLabel = useMemo(
+    () =>
+      parseDateKey(dailyDate).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    [dailyDate],
+  )
 
   const updateDaily = useCallback(
     (cells: UserCell[]) => {
@@ -178,6 +190,7 @@ export default function App() {
     (date: string) => {
       setDailyDate(date)
       setDaily(loadOrCreateDaily(storage, dailySize, date))
+      setCalendarOpen(false)
     },
     [storage, dailySize],
   )
@@ -196,6 +209,7 @@ export default function App() {
 
   const enterPractice = useCallback(() => {
     setMode('practice')
+    setCalendarOpen(false)
     setPractice((prev) => prev ?? makePractice(practiceSize))
   }, [practiceSize])
 
@@ -239,6 +253,18 @@ export default function App() {
     return () => document.removeEventListener('contextmenu', onContextMenu)
   }, [])
 
+  // Close the calendar dropdown when clicking anywhere outside it.
+  const calendarWrapRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (calendarWrapRef.current && !calendarWrapRef.current.contains(e.target as Node)) {
+        setCalendarOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
+
   return (
     <div className="app">
       <header className="app-header">
@@ -249,10 +275,35 @@ export default function App() {
             className={mode === 'daily' ? 'active' : ''}
             onClick={() => {
               setMode('daily')
+              setCalendarOpen(false)
             }}
           >
             Daily
           </button>
+          {mode === 'daily' && (
+            <div className="date-wrap" ref={calendarWrapRef}>
+              <button
+                type="button"
+                className="date-toggle"
+                aria-expanded={calendarOpen}
+                onClick={() => setCalendarOpen((open) => !open)}
+              >
+                {dateLabel} ▾
+              </button>
+              {calendarOpen && (
+                <div className="date-popover">
+                  <Calendar
+                    selected={dailyDate}
+                    today={today}
+                    solvedEasy={solvedEasy}
+                    solvedMedium={solvedMedium}
+                    solvedHard={solvedHard}
+                    onSelect={selectDate}
+                  />
+                </div>
+              )}
+            </div>
+          )}
           <button
             type="button"
             className={mode === 'practice' ? 'active' : ''}
@@ -264,32 +315,22 @@ export default function App() {
       </header>
 
       {mode === 'daily' ? (
-        <>
-          <div className="size-controls">
-            <span className="control-label">Size</span>
-            {DAILY_SIZES.map((size) => (
-              <button
-                key={size}
-                type="button"
-                className={dailySize === size ? 'active' : ''}
-                onClick={() => selectDailySize(size)}
-              >
-                {DAILY_SIZE_LABELS[size]}
-              </button>
-            ))}
-            <button type="button" onClick={restart}>
-              Restart
+        <div className="size-controls">
+          <span className="control-label">Size</span>
+          {DAILY_SIZES.map((size) => (
+            <button
+              key={size}
+              type="button"
+              className={dailySize === size ? 'active' : ''}
+              onClick={() => selectDailySize(size)}
+            >
+              {DAILY_SIZE_LABELS[size]}
             </button>
-          </div>
-          <Calendar
-            selected={dailyDate}
-            today={today}
-            solvedEasy={solvedEasy}
-            solvedMedium={solvedMedium}
-            solvedHard={solvedHard}
-            onSelect={selectDate}
-          />
-        </>
+          ))}
+          <button type="button" onClick={restart}>
+            Restart
+          </button>
+        </div>
       ) : (
         <div className="size-controls">
           <span className="control-label">Size</span>
@@ -326,8 +367,8 @@ export default function App() {
       )}
 
       <p className="hint">
-        Left-click cycles dots through pieces · drag to paint · right-click marks empty (X) ·
-        right-drag from an X erases · D / X switch the left tool.
+        Left-click cycles dots through pieces · Drag to paint · Right-click marks empty (X) ·
+        Right-drag from an X erases · Press D for dot, X for cross.
       </p>
 
       {showWin && (

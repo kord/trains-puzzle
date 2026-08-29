@@ -212,6 +212,23 @@
   }
 }
 
+.date-wrap {
+  position: relative;
+}
+
+.date-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: var(--shadow);
+}
+
 .calendar {
   display: flex;
   flex-direction: column;
