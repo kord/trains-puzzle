@@ -95,6 +95,11 @@ export default function App() {
   const record = mode === 'daily' ? daily : practice
   const solved = record?.solved ?? false
 
+  // Undo history: one snapshot per mouse stroke (a whole click or drag).
+  const undoStackRef = useRef<UserCell[][]>([])
+  const strokeChangedRef = useRef(false)
+  const strokeActiveRef = useRef(false)
+
   // Celebrate and pop the overlay only when the player's own move completes
   // the puzzle — never merely because a loaded or switched puzzle is solved.
   const solutionRef = useRef(record?.solution)
@@ -104,11 +109,14 @@ export default function App() {
       solutionRef.current = record?.solution
       prevSolved.current = solved
       setShowWin(false)
+      undoStackRef.current = []
+      strokeActiveRef.current = false
       return
     }
     if (solved && !prevSolved.current) {
       confetti({ particleCount: 120, spread: 75, origin: { y: 0.6 } })
       confetti({ particleCount: 60, spread: 110, origin: { y: 0.5 } })
+      confetti({ particleCount: 180, spread: 130, origin: { y: 0.4 } })
       setShowWin(true)
     }
     if (!solved) setShowWin(false)
@@ -158,6 +166,34 @@ export default function App() {
     [mode, updateDaily, updatePractice],
   )
 
+  const pushUndoSnapshot = useCallback(() => {
+    if (!record || record.solved) {
+      strokeActiveRef.current = false
+      return
+    }
+    undoStackRef.current.push(record.userCells)
+    strokeChangedRef.current = false
+    strokeActiveRef.current = true
+  }, [record])
+
+  const finishStroke = useCallback(() => {
+    if (!strokeActiveRef.current) return
+    strokeActiveRef.current = false
+    // Discard the snapshot when the whole stroke changed nothing.
+    if (!strokeChangedRef.current) {
+      undoStackRef.current.pop()
+    }
+  }, [])
+
+  const undo = useCallback(() => {
+    if (!record || record.solved) return
+    const prev = undoStackRef.current.pop()
+    if (prev) updateCells(prev)
+  }, [record, updateCells])
+
+  const undoRef = useRef(undo)
+  undoRef.current = undo
+
   const handleCellClick = useCallback(
     (index: number, baseCells: UserCell[], action: PointerAction) => {
       if (!record || record.solved) return
@@ -167,7 +203,10 @@ export default function App() {
           : action === 'right'
             ? markX(record.puzzle, baseCells, index)
             : applyTool(record.puzzle, baseCells, index, tool)
-      if (next) updateCells(next)
+      if (next) {
+        strokeChangedRef.current = true
+        updateCells(next)
+      }
     },
     [record, tool, updateCells],
   )
@@ -181,7 +220,10 @@ export default function App() {
           : action === 'right'
             ? markX(record.puzzle, record.userCells, index)
             : paintTool(record.puzzle, record.userCells, index, tool)
-      if (next) updateCells(next)
+      if (next) {
+        strokeChangedRef.current = true
+        updateCells(next)
+      }
     },
     [record, tool, updateCells],
   )
@@ -220,6 +262,8 @@ export default function App() {
 
   const restart = useCallback(() => {
     if (!record) return
+    undoStackRef.current = []
+    strokeActiveRef.current = false
     const next: DayRecord = {
       ...record,
       userCells: initialUserCells(record.puzzle),
@@ -240,6 +284,8 @@ export default function App() {
         setTool('dot')
       } else if (e.key === 'x' || e.key === 'X') {
         setTool('x')
+      } else if (e.key === 'z' || e.key === 'Z') {
+        undoRef.current()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -353,7 +399,7 @@ export default function App() {
         </div>
       )}
 
-      <Palette tool={tool} onSelect={setTool} />
+      <Palette tool={tool} onSelect={setTool} onUndo={undo} />
 
       {record ? (
         <Board
@@ -361,6 +407,8 @@ export default function App() {
           cells={record.userCells}
           onCellClick={handleCellClick}
           onCellPaint={handleCellPaint}
+          onStrokeStart={pushUndoSnapshot}
+          onStrokeEnd={finishStroke}
         />
       ) : (
         <p className="hint">Generating puzzle…</p>

@@ -111,10 +111,16 @@
   outline-offset: 1px;
 }
 
-/* On mouse-driven devices the palette is unnecessary: right-click always
-   marks a cell empty. It remains visible on touch screens. */
+.palette .undo-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-h);
+}
+
+/* On mouse-driven devices hide the dot/cross tool buttons (right-click and
+   the D/X keys cover them), but keep the undo button visible. */
 @media (pointer: fine) {
-  .palette {
+  .palette .tool {
     display: none;
   }
 }

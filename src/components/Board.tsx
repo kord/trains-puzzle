@@ -10,13 +10,26 @@ interface BoardProps {
     cells: UserCell[]
     onCellClick: (index: number, baseCells: UserCell[], action: PointerAction) => void
     onCellPaint: (index: number, action: PointerAction) => void
+    onStrokeStart: () => void
+    onStrokeEnd: () => void
 }
 
-export function Board({ puzzle, cells, onCellClick, onCellPaint }: BoardProps) {
+export function Board({
+    puzzle,
+    cells,
+    onCellClick,
+    onCellPaint,
+    onStrokeStart,
+    onStrokeEnd,
+}: BoardProps) {
     const clickRef = useRef(onCellClick)
     clickRef.current = onCellClick
     const paintRef = useRef(onCellPaint)
     paintRef.current = onCellPaint
+    const strokeStartRef = useRef(onStrokeStart)
+    strokeStartRef.current = onStrokeStart
+    const strokeEndRef = useRef(onStrokeEnd)
+    strokeEndRef.current = onStrokeEnd
 
     const mouseDownRef = useRef(false)
     const startCellRef = useRef(-1)
@@ -34,6 +47,7 @@ export function Board({ puzzle, cells, onCellClick, onCellPaint }: BoardProps) {
             mouseDownRef.current = false
             startCellRef.current = -1
             didDragRef.current = false
+            strokeEndRef.current()
         }
         window.addEventListener('mouseup', onUp)
         return () => window.removeEventListener('mouseup', onUp)
@@ -47,6 +61,7 @@ export function Board({ puzzle, cells, onCellClick, onCellPaint }: BoardProps) {
         startCellRef.current = index
         didDragRef.current = false
         downCellsRef.current = cells
+        strokeStartRef.current()
         paintRef.current(index, actionRef.current)
     }
 
