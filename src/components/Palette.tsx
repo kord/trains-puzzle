@@ -9,7 +9,7 @@ interface PaletteProps {
 
 export function Palette({ tool, onSelect, onUndo }: PaletteProps) {
     return (
-        <div className="palette" role="toolbar" aria-label="Track marking tools">
+        <div className="toolbar-group tools" role="toolbar" aria-label="Track marking tools">
             <button
                 type="button"
                 className={`tool ${tool === 'dot' ? 'selected' : ''}`}

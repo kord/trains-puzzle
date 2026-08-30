@@ -315,91 +315,91 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>Train Tracks</h1>
-        <div className="mode-switch">
-          <button
-            type="button"
-            className={mode === 'daily' ? 'active' : ''}
-            onClick={() => {
-              setMode('daily')
-              setCalendarOpen(false)
-            }}
-          >
-            Daily
-          </button>
-          {mode === 'daily' && (
-            <div className="date-wrap" ref={calendarWrapRef}>
-              <button
-                type="button"
-                className="date-toggle"
-                aria-expanded={calendarOpen}
-                onClick={() => setCalendarOpen((open) => !open)}
-              >
-                {dateLabel} ▾
+        <div className="toolbar">
+          <div className="toolbar-group">
+            <button
+              type="button"
+              className={mode === 'daily' ? 'active' : ''}
+              onClick={() => {
+                setMode('daily')
+                setCalendarOpen(false)
+              }}
+            >
+              Daily
+            </button>
+            {mode === 'daily' && (
+              <div className="date-wrap" ref={calendarWrapRef}>
+                <button
+                  type="button"
+                  className="date-toggle"
+                  aria-expanded={calendarOpen}
+                  onClick={() => setCalendarOpen((open) => !open)}
+                >
+                  {dateLabel} ▾
+                </button>
+                {calendarOpen && (
+                  <div className="date-popover">
+                    <Calendar
+                      selected={dailyDate}
+                      today={today}
+                      solvedEasy={solvedEasy}
+                      solvedMedium={solvedMedium}
+                      solvedHard={solvedHard}
+                      onSelect={selectDate}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              className={mode === 'practice' ? 'active' : ''}
+              onClick={enterPractice}
+            >
+              Practice
+            </button>
+          </div>
+
+          <div className="toolbar-group">
+            {mode === 'daily' ? (
+              DAILY_SIZES.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  className={dailySize === size ? 'active' : ''}
+                  onClick={() => selectDailySize(size)}
+                >
+                  {DAILY_SIZE_LABELS[size]}
+                </button>
+              ))
+            ) : (
+              PRACTICE_SIZES.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  className={practiceSize === size ? 'active' : ''}
+                  onClick={() => changeSize(size)}
+                >
+                  {PRACTICE_SIZE_LABELS[size]}
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="toolbar-group">
+            {mode === 'practice' && (
+              <button type="button" onClick={newPractice}>
+                New puzzle
               </button>
-              {calendarOpen && (
-                <div className="date-popover">
-                  <Calendar
-                    selected={dailyDate}
-                    today={today}
-                    solvedEasy={solvedEasy}
-                    solvedMedium={solvedMedium}
-                    solvedHard={solvedHard}
-                    onSelect={selectDate}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-          <button
-            type="button"
-            className={mode === 'practice' ? 'active' : ''}
-            onClick={enterPractice}
-          >
-            Practice
-          </button>
+            )}
+            <button type="button" onClick={restart}>
+              Restart
+            </button>
+          </div>
+
+          <Palette tool={tool} onSelect={setTool} onUndo={undo} />
         </div>
       </header>
-
-      {mode === 'daily' ? (
-        <div className="size-controls">
-          <span className="control-label">Size</span>
-          {DAILY_SIZES.map((size) => (
-            <button
-              key={size}
-              type="button"
-              className={dailySize === size ? 'active' : ''}
-              onClick={() => selectDailySize(size)}
-            >
-              {DAILY_SIZE_LABELS[size]}
-            </button>
-          ))}
-          <button type="button" onClick={restart}>
-            Restart
-          </button>
-        </div>
-      ) : (
-        <div className="size-controls">
-          <span className="control-label">Size</span>
-          {PRACTICE_SIZES.map((size) => (
-            <button
-              key={size}
-              type="button"
-              className={practiceSize === size ? 'active' : ''}
-              onClick={() => changeSize(size)}
-            >
-              {PRACTICE_SIZE_LABELS[size]}
-            </button>
-          ))}
-          <button type="button" onClick={newPractice}>
-            New puzzle
-          </button>
-          <button type="button" onClick={restart}>
-            Restart
-          </button>
-        </div>
-      )}
-
-      <Palette tool={tool} onSelect={setTool} onUndo={undo} />
 
       {record ? (
         <Board
