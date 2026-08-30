@@ -32,7 +32,6 @@ import {
   EASY_SIZE,
   HARD_SIZE,
   MEDIUM_SIZE,
-  PRACTICE_HARD_SIZE,
   PRACTICE_SIZES,
   PRACTICE_SIZE_LABELS,
   type DailySize,
@@ -82,7 +81,7 @@ export default function App() {
 
   const today = todayKey()
   const [mode, setMode] = useState<Mode>('daily')
-  const [practiceSize, setPracticeSize] = useState<PracticeSize>(PRACTICE_HARD_SIZE)
+  const [practiceSize, setPracticeSize] = useState<PracticeSize>(HARD_SIZE)
   const [tool, setTool] = useState<Tool>('dot')
 
   const [dailySize, setDailySize] = useState<DailySize>(EASY_SIZE)
