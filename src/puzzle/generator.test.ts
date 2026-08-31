@@ -33,7 +33,7 @@ describe('generate', () => {
         }
     })
 
-    it('never has more than one empty row or column', () => {
+    it('has no empty lines and at most one single-cell line', () => {
         const cases: Array<[number, number[]]> = [
             [6, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]],
             [7, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]],
@@ -42,8 +42,10 @@ describe('generate', () => {
         for (const [size, seeds] of cases) {
             for (const seed of seeds) {
                 const { puzzle } = generate({ rows: size, cols: size, seed })
-                expect(puzzle.rowCounts.filter((n) => n === 0).length).toBeLessThanOrEqual(1)
-                expect(puzzle.colCounts.filter((n) => n === 0).length).toBeLessThanOrEqual(1)
+                expect(puzzle.rowCounts.filter((n) => n === 0)).toHaveLength(0)
+                expect(puzzle.colCounts.filter((n) => n === 0)).toHaveLength(0)
+                expect(puzzle.rowCounts.filter((n) => n === 1).length).toBeLessThanOrEqual(1)
+                expect(puzzle.colCounts.filter((n) => n === 1).length).toBeLessThanOrEqual(1)
             }
         }
     })

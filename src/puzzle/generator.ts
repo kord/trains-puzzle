@@ -106,13 +106,13 @@ function randomPathSolution(rows: number, cols: number, rng: Rng): Board {
         const path = findPath(rows, cols, rng, minLen)
         if (path && path.length >= 2) {
             const board = stampPath(rows, cols, path, rng)
-            // Reject paths that leave too much of the grid empty, so we restart
-            // early instead of paying for a full clue-stripping solve.
-            if (!hasTooManyEmptyLines(board, rows, cols)) return board
+            // Reject layouts with an empty line or too many single-cell lines,
+            // so we restart early instead of paying for a full clue-stripping solve.
+            if (!hasBadLineCounts(board, rows, cols)) return board
         }
     }
 
-    // Fallback: full snake path covering every cell (never has empty lines).
+    // Fallback: full snake path covering every cell (no empty or single-cell lines).
     const path: number[] = []
     for (let r = 0; r < rows; r++) {
         if (r % 2 === 0) {
@@ -124,33 +124,24 @@ function randomPathSolution(rows: number, cols: number, rng: Rng): Board {
     return stampPath(rows, cols, path, rng)
 }
 
-/** True when the board has more than one entirely-empty row or column. */
-function hasTooManyEmptyLines(board: Board, rows: number, cols: number): boolean {
-    let emptyRows = 0
+/** True when the board's line counts are unacceptable: any empty row or
+ * column, or more than one row/column with exactly one track cell. */
+function hasBadLineCounts(board: Board, rows: number, cols: number): boolean {
+    const rowCounts = new Array<number>(rows).fill(0)
+    const colCounts = new Array<number>(cols).fill(0)
     for (let r = 0; r < rows; r++) {
-        let hasTrack = false
         for (let c = 0; c < cols; c++) {
             if (board[indexOf(r, c, cols)] !== EMPTY) {
-                hasTrack = true
-                break
+                rowCounts[r]++
+                colCounts[c]++
             }
         }
-        if (!hasTrack) emptyRows++
     }
 
-    let emptyCols = 0
-    for (let c = 0; c < cols; c++) {
-        let hasTrack = false
-        for (let r = 0; r < rows; r++) {
-            if (board[indexOf(r, c, cols)] !== EMPTY) {
-                hasTrack = true
-                break
-            }
-        }
-        if (!hasTrack) emptyCols++
-    }
+    const bad = (counts: number[]): boolean =>
+        counts.some((n) => n === 0) || counts.filter((n) => n === 1).length > 1
 
-    return emptyRows > 1 || emptyCols > 1
+    return bad(rowCounts) || bad(colCounts)
 }
 
 function findPath(rows: number, cols: number, rng: Rng, minLen: number): number[] | null {
