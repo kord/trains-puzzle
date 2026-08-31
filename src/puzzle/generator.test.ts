@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { generate } from './generator'
-import { classify } from './solver'
+import { classify } from './satsolver'
 import { exitDirsAt, isValidSolution } from './model'
 import { EMPTY } from './model'
 

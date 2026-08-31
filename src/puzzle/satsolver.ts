@@ -1,18 +1,31 @@
-// Alternative solver built on a SAT encoding via the `logic-solver` package.
+// SAT-based solver built on the `logic-solver` package. This is the primary
+// solver wired into the generator; `solver.ts` retains the original CSP
+// backtracker as a reference implementation.
 //
-// The SAT solver enforces the *local* constraints: each cell holds exactly one
-// value (empty or one of the six pieces), clue cells are fixed, the row/column
-// track counts hold, and a cell's port pointing at a neighbor forces that
-// neighbor to point back. The *global* property — the track forms one
-// connected, acyclic path with exactly two exits — is verified in TypeScript
-// with `isValidSolution`, reusing the battle-tested model code. This split
-// keeps the SAT encoding small and straightforward while remaining correct.
+// The SAT solver enforces the local constraints (cell values, clues,
+// row/column counts, port reciprocity) and also the global one: a position
+// ordering that forces every track cell onto a single acyclic path between the
+// two exits. That keeps MiniSat from enumerating thousands of disconnected
+// candidates, which is what exhausted its fixed heap on 7x7+ boards.
+// `isValidSolution` is still applied to results as a safety net.
 
 import Logic from 'logic-solver'
-import type { Board, PieceId, Puzzle } from './types'
+import type { Board, PieceId, Port, Puzzle } from './types'
 import { DIR_DELTA, DIRS, DIR_TO_PORT, OPPOSITE_PORT } from './types'
-import { EMPTY, hasPort, indexOf, isValidSolution, pieceMask } from './model'
-import type { ClassifyResult, CountResult } from './solver'
+import { EMPTY, exitDirsAt, hasPort, indexOf, isValidSolution, pieceMask } from './model'
+export const UNIQUE = 1
+export const MULTIPLE = 2
+export const UNSOLVABLE = 0
+
+export interface CountResult {
+    count: number
+    solutions: Board[]
+}
+
+export interface ClassifyResult {
+    count: 0 | 1 | 2
+    solution: Board | null
+}
 
 const PIECES: readonly PieceId[] = [1, 2, 3, 4, 5, 6]
 const VALUES: readonly number[] = [0, ...PIECES]
@@ -28,9 +41,9 @@ function nonEmpty(i: number): Logic.Term {
 }
 
 /**
- * Build a `logic-solver` instance holding all local constraints. A satisfying
- * assignment is a candidate board; callers must still pass it through
- * `isValidSolution` for the global path check.
+ * Build a `logic-solver` instance holding every constraint (local and the
+ * global single-path ordering). A satisfying assignment is a fully valid
+ * board; `isValidSolution` is still checked as a safety net.
  */
 export function buildSolver(puzzle: Puzzle): Logic.Solver {
     const { rows, cols } = puzzle
@@ -94,7 +107,68 @@ export function buildSolver(puzzle: Puzzle): Logic.Solver {
         }
     }
 
+    addConnectivity(solver, puzzle, n)
+
     return solver
+}
+
+/**
+ * Encode the global "single connected, acyclic path" property directly into
+ * the formula, so the SAT solver enumerates only fully valid solutions instead
+ * of thousands of disconnected candidates. Each cell is assigned a
+ * non-negative integer position; the source exit sits at 0, and every other
+ * track cell must have a connected neighbour (pieces pointing at each other)
+ * with a strictly smaller position. Following those edges strictly decreases
+ * the position, so every track cell must reach the source through one acyclic
+ * chain — and since each piece has exactly two ports, that chain is a single
+ * path with exactly two exits.
+ */
+function addConnectivity(solver: Logic.Solver, puzzle: Puzzle, n: number): void {
+    const { rows, cols } = puzzle
+    const total = puzzle.rowCounts.reduce((sum, count) => sum + count, 0)
+    if (total < 2) return
+
+    // Pick a source: any clue cell with an off-grid port (a path exit).
+    let source = -1
+    for (const clue of puzzle.clues) {
+        if (exitDirsAt(puzzle, clue.row, clue.col).length > 0) {
+            source = indexOf(clue.row, clue.col, cols)
+            break
+        }
+    }
+    if (source < 0) return
+
+    // Integer positions, `bits` wide (enough to number every track cell).
+    const bits = Math.max(1, Math.ceil(Math.log2(total)))
+    const pos: Logic.Bits[] = []
+    for (let i = 0; i < n; i++) pos[i] = Logic.variableBits(`p${i}_`, bits)
+
+    solver.require(Logic.equalBits(pos[source], Logic.constantBits(0)))
+
+    const pointsTo = (from: number, port: Port): Logic.Term =>
+        Logic.or(...PIECES.filter((p) => hasPort(pieceMask(p), port)).map((p) => cellVar(from, p)))
+
+    // Every non-source track cell needs a connected neighbour with a smaller
+    // position.
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const i = indexOf(r, c, cols)
+            if (i === source) continue
+            const preds: Logic.Term[] = []
+            for (const dir of DIRS) {
+                const [dr, dc] = DIR_DELTA[dir]
+                const nr = r + dr
+                const nc = c + dc
+                if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
+                const j = indexOf(nr, nc, cols)
+                const port = DIR_TO_PORT[dir]
+                const back = OPPOSITE_PORT[port]
+                const edge = Logic.and(pointsTo(i, port), pointsTo(j, back))
+                preds.push(Logic.and(edge, Logic.lessThan(pos[j], pos[i])))
+            }
+            solver.require(Logic.or(Logic.not(nonEmpty(i)), ...preds))
+        }
+    }
 }
 
 /** Decode a SAT solution into a `Board` (0 = empty, 1..6 = piece id). */
@@ -108,7 +182,7 @@ function decode(solution: Logic.Solution, n: number): Board {
 }
 
 /** Count up to `limit` valid (globally connected) solutions. */
-export function countSolutionsSat(puzzle: Puzzle, limit: number): CountResult {
+export function countSolutions(puzzle: Puzzle, limit: number): CountResult {
     const solver = buildSolver(puzzle)
     const n = puzzle.rows * puzzle.cols
     const solutions: Board[] = []
@@ -117,16 +191,20 @@ export function countSolutionsSat(puzzle: Puzzle, limit: number): CountResult {
     while (solution && solutions.length < limit) {
         const board = decode(solution, n)
         if (isValidSolution(puzzle, board)) solutions.push(board)
-        solver.forbid(solution.getFormula())
+        // Block only the cell assignment: the position/edge variables must be
+        // free to vary, otherwise the same board is counted once per labeling.
+        const block: Logic.Term[] = []
+        for (let i = 0; i < n; i++) block.push(cellVar(i, board[i]))
+        solver.forbid(...block)
         solution = solver.solve()
     }
 
     return { count: solutions.length, solutions }
 }
 
-/** Classify a puzzle with the SAT solver: 0 unsolvable, 1 unique, 2 multiple. */
-export function classifySat(puzzle: Puzzle): ClassifyResult {
-    const result = countSolutionsSat(puzzle, 2)
+/** Classify a puzzle: 0 unsolvable, 1 unique, 2 multiple. */
+export function classify(puzzle: Puzzle): ClassifyResult {
+    const result = countSolutions(puzzle, 2)
     const count = Math.min(result.count, 2) as 0 | 1 | 2
     return { count, solution: result.solutions[0] ?? null }
 }

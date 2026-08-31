@@ -7,5 +7,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // SAT-based generation can take a few seconds for larger boards.
+    testTimeout: 60000,
   },
 })

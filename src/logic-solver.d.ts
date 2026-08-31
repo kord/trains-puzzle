@@ -38,13 +38,13 @@ declare module 'logic-solver' {
         }
 
         /** An integer expression (a vector of bits), e.g. from `weightedSum` or `constantBits`. */
-        interface Bits {}
+        interface Bits { }
     }
 
     const Logic: {
-        new (): Logic.Solver
-        Solver: { new (): Logic.Solver }
-        Bits: { new (formulas: Logic.Term[]): Logic.Bits }
+        new(): Logic.Solver
+        Solver: { new(): Logic.Solver }
+        Bits: { new(formulas: Logic.Term[]): Logic.Bits }
 
         FALSE: Logic.Term
         TRUE: Logic.Term

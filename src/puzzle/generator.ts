@@ -21,8 +21,11 @@ import {
     pieceMask,
     rowOf,
 } from './model'
-import { countSolutions } from './solver'
 import { makeRng, pick, shuffle, type Rng } from './rng'
+
+// Swap this out for `countSolutions` from `satsolver.ts` to use the SAT-based
+// solver instead of the backtracking one.
+import { countSolutions } from './solver'
 
 export interface GenerateSpec {
     rows: number
