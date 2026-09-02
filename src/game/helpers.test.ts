@@ -156,4 +156,9 @@ describe('row/col statuses', () => {
     it('reports many when the count is exceeded', () => {
         expect(rowStatuses({ ...row, rowCounts: [1] }, ['dot', 1, 'blank'])).toEqual(['many'])
     })
+
+    it('reports blocked when x-marks leave too few cells', () => {
+        expect(rowStatuses(row, ['x', 'x', 'blank'])).toEqual(['blocked'])
+        expect(colStatuses(col, ['x', 'x', 'blank'])).toEqual(['blocked'])
+    })
 })

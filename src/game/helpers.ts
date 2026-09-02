@@ -162,7 +162,7 @@ export function isSolved(solution: Board, cells: UserCell[]): boolean {
     return true
 }
 
-export type CountStatus = 'ok' | 'few' | 'many' | 'tight'
+export type CountStatus = 'ok' | 'few' | 'many' | 'tight' | 'blocked'
 
 export function rowStatuses(puzzle: Puzzle, cells: UserCell[]): CountStatus[] {
     const statuses: CountStatus[] = []
@@ -197,6 +197,8 @@ export function colStatuses(puzzle: Puzzle, cells: UserCell[]): CountStatus[] {
 function statusFor(current: number, nonX: number, target: number): CountStatus {
     if (current > target) return 'many'
     if (current === target) return 'ok'
+    // Too many x-marks: fewer cells remain than tracks are needed.
+    if (nonX < target) return 'blocked'
     // Exactly as many un-marked cells remain as tracks are needed: no room to spare.
     return nonX === target ? 'tight' : 'few'
 }

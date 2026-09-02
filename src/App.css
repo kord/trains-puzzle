@@ -147,6 +147,10 @@
   color: var(--many);
 }
 
+.count-hint.blocked {
+  color: var(--many);
+}
+
 .cell {
   width: var(--cell);
   height: var(--cell);
