@@ -51,8 +51,7 @@ export default function App() {
       )}
 
       <p className="hint">
-        Left-click cycles dots through pieces · Drag to paint · Right-click marks empty (X) ·
-        Right-drag from an X erases
+        Left click to mark dots where you believe the train tracks go. Right click to mark empty cells (X). Left click again to cycle through pieces. Drag to paint. Right drag from an X to erase.
       </p>
 
       {game.showWin && (
