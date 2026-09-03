@@ -3,6 +3,8 @@
 
 import type { Board, Puzzle, UserCell } from './types'
 
+const PUZZLENAME = 'trains';
+
 export interface DayRecord {
     puzzle: Puzzle
     solution: Board
@@ -16,8 +18,8 @@ export interface StorageLike {
     setItem(key: string, value: string): void
 }
 
-const dayKey = (size: number, date: string): string => `trains.day.${size}.${date}`
-const solvedKey = (size: number): string => `trains.solved.${size}`
+const dayKey = (size: number, date: string): string => `${PUZZLENAME}.day.${size}.${date}`
+const solvedKey = (size: number): string => `${PUZZLENAME}.solved.${size}`
 const SCHEMA_VERSION = 2
 
 export function loadDay(storage: StorageLike, size: number, date: string): DayRecord | null {
