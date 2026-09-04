@@ -10,6 +10,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "bench": "vitest run --config bench.config.ts --disableConsoleIntercept bench/bench-generate.test.ts",
+    "compare": "vitest run --config bench.config.ts --disableConsoleIntercept bench/compare.test.ts",
     "profile": "vitest run --config bench.config.ts --disableConsoleIntercept bench/profile.test.ts",
     "preview": "vite preview"
   },

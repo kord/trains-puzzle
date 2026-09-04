@@ -1,6 +1,6 @@
-// SAT-based solver built on the `logic-solver` package. This is the primary
-// solver wired into the generator; `solver.ts` retains the original CSP
-// backtracker as a reference implementation.
+// SAT-based solver built on the `logic-solver` package. Used as one of the
+// generator's backends (see `solverBackend.ts`); `solver.ts` retains the
+// original CSP backtracker as a reference implementation.
 //
 // The SAT solver enforces the local constraints (cell values, clues,
 // row/column counts, port reciprocity) and also the global one: a position
@@ -40,12 +40,21 @@ function nonEmpty(i: number): Logic.Term {
     return Logic.or(...PIECES.map((p) => cellVar(i, p)))
 }
 
+/** Fix a single cell to a specific value (0 = empty, 1..6 = piece). */
+function fixClue(solver: Logic.Solver, i: number, value: number): void {
+    for (const v of VALUES) {
+        if (v === value) solver.require(cellVar(i, v))
+        else solver.forbid(cellVar(i, v))
+    }
+}
+
 /**
- * Build a `logic-solver` instance holding every constraint (local and the
- * global single-path ordering). A satisfying assignment is a fully valid
- * board; `isValidSolution` is still checked as a safety net.
+ * Build a `logic-solver` instance holding the structural constraints: exactly
+ * one value per cell, row/column counts, port reciprocity, and the global
+ * single-path ordering. Clue cells are NOT fixed — callers either fix them
+ * with `fixClue` or toggle them with assumption literals.
  */
-export function buildSolver(puzzle: Puzzle): Logic.Solver {
+export function buildBaseSolver(puzzle: Puzzle): Logic.Solver {
     const { rows, cols } = puzzle
     const n = rows * cols
     const solver = new Logic.Solver()
@@ -53,15 +62,6 @@ export function buildSolver(puzzle: Puzzle): Logic.Solver {
     // Exactly one value per cell.
     for (let i = 0; i < n; i++) {
         solver.require(Logic.exactlyOne(...VALUES.map((v) => cellVar(i, v))))
-    }
-
-    // Clue cells are fixed to their given piece.
-    for (const clue of puzzle.clues) {
-        const i = indexOf(clue.row, clue.col, cols)
-        for (const v of VALUES) {
-            if (v === clue.piece) solver.require(cellVar(i, v))
-            else solver.forbid(cellVar(i, v))
-        }
     }
 
     // "The weighted sum of `terms` equals `total`".
@@ -110,6 +110,73 @@ export function buildSolver(puzzle: Puzzle): Logic.Solver {
     addConnectivity(solver, puzzle, n)
 
     return solver
+}
+
+/**
+ * Build a `logic-solver` instance holding every constraint, with all clue
+ * cells fixed. A satisfying assignment is a fully valid board;
+ * `isValidSolution` is still checked as a safety net.
+ */
+export function buildSolver(puzzle: Puzzle): Logic.Solver {
+    const solver = buildBaseSolver(puzzle)
+    for (const clue of puzzle.clues) {
+        fixClue(solver, indexOf(clue.row, clue.col, puzzle.cols), clue.piece)
+    }
+    return solver
+}
+
+export interface IncrementalUniqueness {
+    /** True when the puzzle is uniquely solvable with only `activeCells` clues. */
+    isUnique(activeCells: Iterable<number>): boolean
+}
+
+/**
+ * Incremental uniqueness checker for the strip loop. The structural formula
+ * is built once, exit clues stay permanent, and the other clues are toggled
+ * via assumption literals, so MiniSat reuses learned clauses (row/column
+ * counts, reciprocity, connectivity) across every check. The known solution
+ * is permanently forbidden, so a satisfying assignment under the active clues
+ * is exactly "some other solution" — one `solveAssuming` per check decides
+ * uniqueness.
+ */
+export function createIncrementalUniqueness(
+    puzzle: Puzzle,
+    solution: Board,
+): IncrementalUniqueness {
+    const { cols } = puzzle
+    const n = puzzle.rows * puzzle.cols
+    const solver = buildBaseSolver(puzzle)
+
+    const clueLit = new Map<number, string>()
+    for (const clue of puzzle.clues) {
+        const i = indexOf(clue.row, clue.col, cols)
+        if (exitDirsAt(puzzle, clue.row, clue.col).length > 0) {
+            fixClue(solver, i, clue.piece)
+        } else {
+            const lit = `k${i}`
+            clueLit.set(i, lit)
+            solver.require(Logic.implies(lit, cellVar(i, clue.piece)))
+            for (const p of PIECES) {
+                if (p !== clue.piece) solver.require(Logic.implies(lit, Logic.not(cellVar(i, p))))
+            }
+        }
+    }
+
+    // Permanently block the known solution: any other model means non-unique.
+    const block: Logic.Term[] = []
+    for (let i = 0; i < n; i++) block.push(cellVar(i, solution[i]))
+    solver.forbid(Logic.and(...block))
+
+    return {
+        isUnique(activeCells: Iterable<number>): boolean {
+            const lits: Logic.Term[] = []
+            for (const i of activeCells) {
+                const lit = clueLit.get(i)
+                if (lit) lits.push(lit)
+            }
+            return solver.solveAssuming(Logic.and(...lits)) === null
+        },
+    }
 }
 
 /**
@@ -195,7 +262,7 @@ export function countSolutions(puzzle: Puzzle, limit: number): CountResult {
         // free to vary, otherwise the same board is counted once per labeling.
         const block: Logic.Term[] = []
         for (let i = 0; i < n; i++) block.push(cellVar(i, board[i]))
-        solver.forbid(...block)
+        solver.forbid(Logic.and(...block))
         solution = solver.solve()
     }
 

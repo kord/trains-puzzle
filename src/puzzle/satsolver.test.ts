@@ -43,4 +43,15 @@ describe('classify', () => {
         }
         expect(classify(puzzle).count).toBe(0)
     })
+
+    it('reports multiple when more than one valid path exists', () => {
+        const puzzle: Puzzle = {
+            rows: 3,
+            cols: 3,
+            rowCounts: [2, 2, 0],
+            colCounts: [2, 2, 0],
+            clues: [{ row: 1, col: 1, piece: 6 }], // WN corner fixes the middle bend
+        }
+        expect(classify(puzzle).count).toBe(2)
+    })
 })

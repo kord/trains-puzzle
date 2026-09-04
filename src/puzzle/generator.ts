@@ -22,7 +22,7 @@ import {
     rowOf,
 } from './model'
 import { makeRng, pick, shuffle, type Rng } from './rng'
-import { countSolutions } from './solverBackend'
+import { createUniquenessChecker } from './solverBackend'
 
 export interface GenerateSpec {
     rows: number
@@ -132,20 +132,20 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
         candidates.push(i)
     }
 
+    const checker = time(timer, 'buildChecker', () => createUniquenessChecker(puzzle, solution))
+
     time(timer, 'stripClues', () => {
+        const active = new Set<number>(candidates)
         for (const cell of shuffle(rng, candidates)) {
-            const clueIndex = puzzle.clues.findIndex(
-                (c) => indexOf(c.row, c.col, spec.cols) === cell,
-            )
-            if (clueIndex === -1) continue
-            const removed = puzzle.clues.splice(clueIndex, 1)[0]
-            const unique = time(timer, 'countSolutions', () => countSolutions(puzzle, 2).count === 1)
-            if (unique) {
-                // Keep the clue removed: the puzzle is still uniquely solvable.
-            } else {
-                puzzle.clues.push(removed)
-            }
+            active.delete(cell)
+            const unique = time(timer, 'uniquenessCheck', () => checker.isUnique(active))
+            if (!unique) active.add(cell)
         }
+        // Keep only the exit clues and the clues that survived stripping.
+        puzzle.clues = puzzle.clues.filter((c) => {
+            const i = indexOf(c.row, c.col, spec.cols)
+            return clueCells.has(i) || active.has(i)
+        })
     })
 
     const result: GeneratedPuzzle = { puzzle, solution }
