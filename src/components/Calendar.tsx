@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { parseDateKey, toDateKey } from '../game/helpers'
-import './Calendar.css'
+import './calendar.css'
 
 interface CalendarProps {
     selected: string
