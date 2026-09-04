@@ -1,5 +1,8 @@
 import { describe, it } from 'vitest'
 import { generate } from '../src/puzzle/generator'
+import { setSolverBackend, solverBackend } from '../src/puzzle/solverBackend'
+
+setSolverBackend(process.env.SOLVER === 'sat' ? 'sat' : 'csp')
 
 interface SizeResult {
     size: number
@@ -43,7 +46,7 @@ describe('generation benchmark', () => {
         for (const size of [6, 7, 8, 9, 10]) results.push(runSize(size))
 
         // eslint-disable-next-line no-console
-        console.log('\nGeneration benchmark — 10 random seeds per size\n')
+        console.log(`\nGeneration benchmark — 10 random seeds per size (${solverBackend()})\n`)
         // eslint-disable-next-line no-console
         console.log('Size    Min(ms)  Mean(ms)   Max(ms)   Failed')
         for (const r of results) {

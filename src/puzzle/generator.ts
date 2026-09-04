@@ -22,25 +22,72 @@ import {
     rowOf,
 } from './model'
 import { makeRng, pick, shuffle, type Rng } from './rng'
-
-// Swap this out for `countSolutions` from `satsolver.ts` to use the SAT-based
-// solver instead of the backtracking one.
-import { countSolutions } from './solver'
+import { countSolutions } from './solverBackend'
 
 export interface GenerateSpec {
     rows: number
     cols: number
     seed: number
+    /** When true, collect per-phase timings into the returned `timing`. */
+    debug?: boolean
+}
+
+/** One named phase of generation, with aggregate and worst-case stats. */
+export interface PhaseStat {
+    name: string
+    ms: number
+    calls: number
+    maxMs: number
+}
+
+/** Per-phase timing breakdown for a `debug` generation. */
+export interface GenerationTiming {
+    totalMs: number
+    phases: PhaseStat[]
 }
 
 export interface GeneratedPuzzle {
     puzzle: Puzzle
     solution: Board
+    /** Present only when the spec requested debug timing. */
+    timing?: GenerationTiming
+}
+
+/** Accumulates named wall-clock timings (calls, total, worst single call). */
+class PhaseTimer {
+    private stats = new Map<string, { ms: number; calls: number; maxMs: number }>()
+
+    time<T>(name: string, fn: () => T): T {
+        const start = performance.now()
+        try {
+            return fn()
+        } finally {
+            const ms = performance.now() - start
+            const entry = this.stats.get(name) ?? { ms: 0, calls: 0, maxMs: 0 }
+            entry.ms += ms
+            entry.calls += 1
+            entry.maxMs = Math.max(entry.maxMs, ms)
+            this.stats.set(name, entry)
+        }
+    }
+
+    entries(): PhaseStat[] {
+        return [...this.stats.entries()]
+            .map(([name, s]) => ({ name, ms: s.ms, calls: s.calls, maxMs: s.maxMs }))
+            .sort((a, b) => b.ms - a.ms)
+    }
+}
+
+/** Time `fn` under `timer` when present, otherwise just run it. */
+function time<T>(timer: PhaseTimer | undefined, name: string, fn: () => T): T {
+    return timer ? timer.time(name, fn) : fn()
 }
 
 export function generate(spec: GenerateSpec): GeneratedPuzzle {
+    const timer = spec.debug ? new PhaseTimer() : undefined
+    const start = performance.now()
     const rng = makeRng(spec.seed)
-    const solution = randomPathSolution(spec.rows, spec.cols, rng)
+    const solution = time(timer, 'randomPathSolution', () => randomPathSolution(spec.rows, spec.cols, rng, timer))
 
     const rowCounts: number[] = []
     for (let r = 0; r < spec.rows; r++) {
@@ -85,33 +132,40 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
         candidates.push(i)
     }
 
-    for (const cell of shuffle(rng, candidates)) {
-        const clueIndex = puzzle.clues.findIndex(
-            (c) => indexOf(c.row, c.col, spec.cols) === cell,
-        )
-        if (clueIndex === -1) continue
-        const removed = puzzle.clues.splice(clueIndex, 1)[0]
-        if (countSolutions(puzzle, 2).count === 1) {
-            // Keep the clue removed: the puzzle is still uniquely solvable.
-        } else {
-            puzzle.clues.push(removed)
+    time(timer, 'stripClues', () => {
+        for (const cell of shuffle(rng, candidates)) {
+            const clueIndex = puzzle.clues.findIndex(
+                (c) => indexOf(c.row, c.col, spec.cols) === cell,
+            )
+            if (clueIndex === -1) continue
+            const removed = puzzle.clues.splice(clueIndex, 1)[0]
+            const unique = time(timer, 'countSolutions', () => countSolutions(puzzle, 2).count === 1)
+            if (unique) {
+                // Keep the clue removed: the puzzle is still uniquely solvable.
+            } else {
+                puzzle.clues.push(removed)
+            }
         }
-    }
+    })
 
-    return { puzzle, solution }
+    const result: GeneratedPuzzle = { puzzle, solution }
+    if (timer) result.timing = { totalMs: performance.now() - start, phases: timer.entries() }
+    return result
 }
 
-function randomPathSolution(rows: number, cols: number, rng: Rng): Board {
+function randomPathSolution(rows: number, cols: number, rng: Rng, timer?: PhaseTimer): Board {
     const total = rows * cols
     const minLen = Math.max(3, Math.floor(total * (0.35 + 0.35 * rng())))
 
-    for (let attempt = 0; attempt < 30; attempt++) {
-        const path = findPath(rows, cols, rng, minLen)
+    const MAX_RANDOM_PATH_ATTEMPTS = 50
+    for (let attempt = 0; attempt < MAX_RANDOM_PATH_ATTEMPTS; attempt++) {
+        const path = time(timer, 'findPath', () => findPath(rows, cols, rng, minLen))
         if (path && path.length >= 2) {
-            const board = stampPath(rows, cols, path, rng)
+            const board = time(timer, 'stampPath', () => stampPath(rows, cols, path, rng))
             // Reject layouts with an empty line or too many single-cell lines,
             // so we restart early instead of paying for a full clue-stripping solve.
-            if (!hasBadLineCounts(board, rows, cols)) return board
+            const bad = time(timer, 'hasBadLineCounts', () => hasBadLineCounts(board, rows, cols))
+            if (!bad) return board
         }
     }
 
@@ -124,7 +178,7 @@ function randomPathSolution(rows: number, cols: number, rng: Rng): Board {
             for (let c = cols - 1; c >= 0; c--) path.push(indexOf(r, c, cols))
         }
     }
-    return stampPath(rows, cols, path, rng)
+    return time(timer, 'stampPath', () => stampPath(rows, cols, path, rng))
 }
 
 /** True when the board's line counts are unacceptable: any empty row or
