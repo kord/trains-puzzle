@@ -47,7 +47,9 @@ export default function App() {
           onStrokeEnd={game.finishStroke}
         />
       ) : (
-        <p className="hint">Generating puzzle…</p>
+        <p className="hint">
+          {game.loadError ? 'Could not generate this puzzle. Please try again.' : 'Generating puzzle…'}
+        </p>
       )}
 
       <p className="hint">

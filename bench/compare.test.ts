@@ -48,8 +48,8 @@ describe('CSP vs SAT benchmark', () => {
             // eslint-disable-next-line no-console
             console.log(
                 `${String(size).padStart(4)}   ${fmt(csp.min)}/${fmt(csp.mean)}/${fmt(csp.max)}   ` +
-                    `${fmt(sat.min)}/${fmt(sat.mean)}/${fmt(sat.max)}   ` +
-                    `${String(csp.failed).padStart(10)}  ${String(sat.failed).padStart(10)}`,
+                `${fmt(sat.min)}/${fmt(sat.mean)}/${fmt(sat.max)}   ` +
+                `${String(csp.failed).padStart(10)}  ${String(sat.failed).padStart(10)}`,
             )
         }
         // eslint-disable-next-line no-console

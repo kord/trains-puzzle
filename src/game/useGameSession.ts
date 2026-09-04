@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import type { PointerAction } from '../components/Board'
-import { dailyPuzzleFor } from '../puzzle/daily'
-import { generate } from '../puzzle/generator'
+import { dateToSeed } from '../puzzle/rng'
+import { requestGenerate, type GeneratedResult } from './puzzleWorker'
 import {
     getSolvedDates,
     loadDay,
@@ -10,8 +10,9 @@ import {
     type DayRecord,
     type StorageLike,
 } from '../puzzle/storage'
-import type { UserCell } from '../puzzle/types'
+import type { Board, Puzzle, UserCell } from '../puzzle/types'
 import {
+    DAILY_SIZES,
     EASY_SIZE,
     HARD_SIZE,
     MEDIUM_SIZE,
@@ -43,22 +44,12 @@ function randomSeed(): number {
     return (Math.random() * 0xffffffff) >>> 0
 }
 
-function loadOrCreateDaily(storage: StorageLike, size: DailySize, date: string): DayRecord {
-    const existing = loadDay(storage, size, date)
-    if (existing) return existing
-    const { puzzle, solution } = dailyPuzzleFor(date, size)
-    const record: DayRecord = {
-        puzzle,
-        solution,
-        userCells: initialUserCells(puzzle),
-        solved: false,
-    }
-    saveDay(storage, size, date, record)
-    return record
+/** Deterministic per-day seed, mirroring `dailyPuzzleFor` in `puzzle/daily.ts`. */
+function dailySeed(size: number, date: string): number {
+    return dateToSeed(`${size}:${date}`)
 }
 
-function makePractice(size: PracticeSize): DayRecord {
-    const { puzzle, solution } = generate({ rows: size, cols: size, seed: randomSeed() })
+function makeRecord(puzzle: Puzzle, solution: Board): DayRecord {
     return { puzzle, solution, userCells: initialUserCells(puzzle), solved: false }
 }
 
@@ -82,13 +73,97 @@ export function useGameSession() {
 
     const [dailySize, setDailySize] = useState<DailySize>(EASY_SIZE)
     const [dailyDate, setDailyDate] = useState<string>(today)
-    const [daily, setDaily] = useState<DayRecord>(() => loadOrCreateDaily(storage, EASY_SIZE, today))
+    const [daily, setDaily] = useState<DayRecord | null>(() => loadDay(storage, EASY_SIZE, today))
     const [practice, setPractice] = useState<DayRecord | null>(null)
+    const [loading, setLoading] = useState(false)
+    const [loadError, setLoadError] = useState(false)
     const [showWin, setShowWin] = useState(false)
     const [calendarOpen, setCalendarOpen] = useState(false)
 
     const record = mode === 'daily' ? daily : practice
     const solved = record?.solved ?? false
+
+    // Foreground generation token: only the latest request may update state.
+    const loadTokenRef = useRef(0)
+    // In-flight daily generations, deduped by `${size}:${date}`.
+    const dailyGenRef = useRef(new Map<string, Promise<GeneratedResult>>())
+
+    const generateDailyResult = useCallback(
+        (size: DailySize, date: string, kind: 'foreground' | 'background') => {
+            const key = `${size}:${date}`
+            const existing = dailyGenRef.current.get(key)
+            if (existing) return existing
+            const promise = requestGenerate(kind, size, dailySeed(size, date))
+            dailyGenRef.current.set(key, promise)
+            void promise.finally(() => dailyGenRef.current.delete(key))
+            return promise
+        },
+        [],
+    )
+
+    const showDaily = useCallback(
+        async (size: DailySize, date: string) => {
+            const token = ++loadTokenRef.current
+            setLoading(true)
+            setLoadError(false)
+            const cached = loadDay(storage, size, date)
+            if (cached) {
+                if (token === loadTokenRef.current) {
+                    setDaily(cached)
+                    setLoading(false)
+                }
+                return
+            }
+            // Clear the board while generating so a stale day isn't shown.
+            if (token === loadTokenRef.current) setDaily(null)
+            try {
+                const { puzzle, solution } = await generateDailyResult(size, date, 'foreground')
+                if (token !== loadTokenRef.current) return
+                const record = makeRecord(puzzle, solution)
+                saveDay(storage, size, date, record)
+                setDaily(record)
+            } catch {
+                if (token === loadTokenRef.current) setLoadError(true)
+            } finally {
+                if (token === loadTokenRef.current) setLoading(false)
+            }
+        },
+        [storage, generateDailyResult],
+    )
+
+    const prefetchDaily = useCallback(
+        (date: string) => {
+            for (const size of DAILY_SIZES) {
+                if (size === EASY_SIZE || loadDay(storage, size, date)) continue
+                void generateDailyResult(size, date, 'background')
+                    .then(({ puzzle, solution }) => {
+                        saveDay(storage, size, date, makeRecord(puzzle, solution))
+                    })
+                    .catch(() => {
+                        // Background generation is best-effort.
+                    })
+            }
+        },
+        [storage, generateDailyResult],
+    )
+
+    const loadPractice = useCallback((size: PracticeSize) => {
+        const token = ++loadTokenRef.current
+        setLoading(true)
+        setLoadError(false)
+        setPractice(null)
+        void requestGenerate('foreground', size, randomSeed())
+            .then(({ puzzle, solution }) => {
+                if (token !== loadTokenRef.current) return
+                setPractice(makeRecord(puzzle, solution))
+            })
+            .catch(() => {
+                if (token === loadTokenRef.current) setLoadError(true)
+            })
+            .finally(() => {
+                if (token === loadTokenRef.current) setLoading(false)
+            })
+    }, [])
 
     // Undo history: one snapshot per mouse stroke (a whole click or drag).
     const undoStackRef = useRef<UserCell[][]>([])
@@ -135,6 +210,7 @@ export function useGameSession() {
     const updateDaily = useCallback(
         (cells: UserCell[]) => {
             setDaily((prev) => {
+                if (!prev) return prev
                 const next: DayRecord = {
                     ...prev,
                     userCells: cells,
@@ -226,23 +302,25 @@ export function useGameSession() {
     const selectDate = useCallback(
         (date: string) => {
             setDailyDate(date)
-            setDaily(loadOrCreateDaily(storage, dailySize, date))
+            setDailySize(EASY_SIZE)
             setCalendarOpen(false)
+            void showDaily(EASY_SIZE, date)
+            prefetchDaily(date)
         },
-        [storage, dailySize],
+        [showDaily, prefetchDaily],
     )
 
     const selectDailySize = useCallback(
         (size: DailySize) => {
             setDailySize(size)
-            setDaily(loadOrCreateDaily(storage, size, dailyDate))
+            void showDaily(size, dailyDate)
         },
-        [storage, dailyDate],
+        [showDaily, dailyDate],
     )
 
     const newPractice = useCallback(() => {
-        setPractice(makePractice(practiceSize))
-    }, [practiceSize])
+        loadPractice(practiceSize)
+    }, [loadPractice, practiceSize])
 
     const enterDaily = useCallback(() => {
         setMode('daily')
@@ -252,8 +330,8 @@ export function useGameSession() {
     const enterPractice = useCallback(() => {
         setMode('practice')
         setCalendarOpen(false)
-        setPractice((prev) => prev ?? makePractice(practiceSize))
-    }, [practiceSize])
+        if (!practice) loadPractice(practiceSize)
+    }, [practice, loadPractice, practiceSize])
 
     const toggleCalendar = useCallback(() => {
         setCalendarOpen((open) => !open)
@@ -263,10 +341,13 @@ export function useGameSession() {
         setShowWin(false)
     }, [])
 
-    const changeSize = useCallback((size: PracticeSize) => {
-        setPracticeSize(size)
-        setPractice(makePractice(size))
-    }, [])
+    const changeSize = useCallback(
+        (size: PracticeSize) => {
+            setPracticeSize(size)
+            loadPractice(size)
+        },
+        [loadPractice],
+    )
 
     const restart = useCallback(() => {
         if (!record) return
@@ -285,6 +366,23 @@ export function useGameSession() {
             setPractice(next)
         }
     }, [record, mode, storage, dailySize, dailyDate])
+
+    // Load the initial daily (easy) and prefetch the other sizes in background.
+    const initializedRef = useRef(false)
+    useEffect(() => {
+        if (initializedRef.current) return
+        initializedRef.current = true
+        void showDaily(EASY_SIZE, today)
+        prefetchDaily(today)
+    }, [showDaily, prefetchDaily, today])
+
+    // Show a busy cursor while the player waits on a foreground puzzle.
+    useEffect(() => {
+        document.body.style.cursor = loading ? 'progress' : ''
+        return () => {
+            document.body.style.cursor = ''
+        }
+    }, [loading])
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -323,6 +421,8 @@ export function useGameSession() {
         mode,
         tool,
         record,
+        loading,
+        loadError,
         showWin,
         today,
         dailyDate,
