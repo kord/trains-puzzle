@@ -9,6 +9,7 @@
     "deploy": "npm run build && firebase deploy",
     "lint": "oxlint",
     "test": "vitest run",
+    "bench": "vitest run --config bench.config.ts --disableConsoleIntercept",
     "preview": "vite preview"
   },
   "dependencies": {
