@@ -40,10 +40,27 @@ export interface PhaseStat {
     maxMs: number
 }
 
+/** Counters for the rejection/diagnostic behaviour of one generation. */
+export interface GenerationCounts {
+    /** Random paths attempted before one was accepted. */
+    pathAttempts: number
+    /** Attempts rejected: findPath found nothing, or the board had bad line counts. */
+    pathsRejected: number
+    /** True when the deterministic snake fallback was used. */
+    usedFallback: boolean
+    /** Clue candidates considered for stripping (track cells minus exits). */
+    clueCandidates: number
+    /** Clues that survived stripping — each removal here was rejected (non-unique). */
+    cluesKept: number
+    /** Clues successfully removed while keeping the puzzle unique. */
+    cluesRemoved: number
+}
+
 /** Per-phase timing breakdown for a `debug` generation. */
 export interface GenerationTiming {
     totalMs: number
     phases: PhaseStat[]
+    counts: GenerationCounts
 }
 
 export interface GeneratedPuzzle {
@@ -87,7 +104,15 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
     const timer = spec.debug ? new PhaseTimer() : undefined
     const start = performance.now()
     const rng = makeRng(spec.seed)
-    const solution = time(timer, 'randomPathSolution', () => randomPathSolution(spec.rows, spec.cols, rng, timer))
+    const counts: GenerationCounts = {
+        pathAttempts: 0,
+        pathsRejected: 0,
+        usedFallback: false,
+        clueCandidates: 0,
+        cluesKept: 0,
+        cluesRemoved: 0,
+    }
+    const solution = time(timer, 'randomPathSolution', () => randomPathSolution(spec.rows, spec.cols, rng, timer, counts))
 
     const rowCounts: number[] = []
     for (let r = 0; r < spec.rows; r++) {
@@ -134,6 +159,7 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
 
     const checker = time(timer, 'buildChecker', () => createUniquenessChecker(puzzle, solution))
 
+    counts.clueCandidates = candidates.length
     time(timer, 'stripClues', () => {
         const active = new Set<number>(candidates)
         for (const cell of shuffle(rng, candidates)) {
@@ -141,6 +167,8 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
             const unique = time(timer, 'uniquenessCheck', () => checker.isUnique(active))
             if (!unique) active.add(cell)
         }
+        counts.cluesKept = active.size
+        counts.cluesRemoved = candidates.length - active.size
         // Keep only the exit clues and the clues that survived stripping.
         puzzle.clues = puzzle.clues.filter((c) => {
             const i = indexOf(c.row, c.col, spec.cols)
@@ -149,16 +177,23 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
     })
 
     const result: GeneratedPuzzle = { puzzle, solution }
-    if (timer) result.timing = { totalMs: performance.now() - start, phases: timer.entries() }
+    if (timer) result.timing = { totalMs: performance.now() - start, phases: timer.entries(), counts }
     return result
 }
 
-function randomPathSolution(rows: number, cols: number, rng: Rng, timer?: PhaseTimer): Board {
+function randomPathSolution(
+    rows: number,
+    cols: number,
+    rng: Rng,
+    timer?: PhaseTimer,
+    counts?: GenerationCounts,
+): Board {
     const total = rows * cols
     const minLen = Math.max(3, Math.floor(total * (0.35 + 0.35 * rng())))
 
     const MAX_RANDOM_PATH_ATTEMPTS = 50
     for (let attempt = 0; attempt < MAX_RANDOM_PATH_ATTEMPTS; attempt++) {
+        if (counts) counts.pathAttempts++
         const path = time(timer, 'findPath', () => findPath(rows, cols, rng, minLen))
         if (path && path.length >= 2) {
             const board = time(timer, 'stampPath', () => stampPath(rows, cols, path, rng))
@@ -167,9 +202,11 @@ function randomPathSolution(rows: number, cols: number, rng: Rng, timer?: PhaseT
             const bad = time(timer, 'hasBadLineCounts', () => hasBadLineCounts(board, rows, cols))
             if (!bad) return board
         }
+        if (counts) counts.pathsRejected++
     }
 
     // Fallback: full snake path covering every cell (no empty or single-cell lines).
+    if (counts) counts.usedFallback = true
     const path: number[] = []
     for (let r = 0; r < rows; r++) {
         if (r % 2 === 0) {

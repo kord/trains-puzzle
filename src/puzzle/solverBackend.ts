@@ -50,7 +50,7 @@ export interface UniquenessChecker {
 }
 
 /** CSP checker: rebuilds the clue set from the active cells on each call. */
-function cspChecker(puzzle: Puzzle): UniquenessChecker {
+function cspChecker(puzzle: Puzzle, solution: Board): UniquenessChecker {
     const { cols } = puzzle
     const exits: Clue[] = []
     const candidates = new Map<number, Clue>()
@@ -65,7 +65,8 @@ function cspChecker(puzzle: Puzzle): UniquenessChecker {
                 const clue = candidates.get(i)
                 if (clue) clues.push(clue)
             }
-            return countCsp({ ...puzzle, clues }, 2).count === 1
+            // Value-order the search with the known solution.
+            return countCsp({ ...puzzle, clues }, 2, solution).count === 1
         },
     }
 }
@@ -77,5 +78,5 @@ function cspChecker(puzzle: Puzzle): UniquenessChecker {
  */
 export function createUniquenessChecker(puzzle: Puzzle, solution: Board): UniquenessChecker {
     if (current === 'sat') return createIncrementalUniqueness(puzzle, solution)
-    return cspChecker(puzzle)
+    return cspChecker(puzzle, solution)
 }

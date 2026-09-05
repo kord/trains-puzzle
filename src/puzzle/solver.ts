@@ -37,15 +37,20 @@ export interface ClassifyResult {
 }
 
 /** Classify a puzzle: 0 = unsolvable, 1 = unique, 2 = multiple. */
-export function classify(puzzle: Puzzle): ClassifyResult {
-    const result = countSolutions(puzzle, 2)
+export function classify(puzzle: Puzzle, hint?: Board): ClassifyResult {
+    const result = countSolutions(puzzle, 2, hint)
     const count = Math.min(result.count, 2) as 0 | 1 | 2
     return { count, solution: result.solutions[0] ?? null }
 }
 
-/** Count solutions up to `limit` (stop early once the limit is reached). */
-export function countSolutions(puzzle: Puzzle, limit: number): CountResult {
-    const solver = new Solver(puzzle)
+/**
+ * Count solutions up to `limit` (stop early once the limit is reached). A
+ * known solution can be passed as `hint` to value-order the search: each cell
+ * tries the hint's value first, so the solver finds that solution immediately
+ * and spends the rest of its time looking for another.
+ */
+export function countSolutions(puzzle: Puzzle, limit: number, hint?: Board): CountResult {
+    const solver = new Solver(puzzle, hint)
     const solutions: Board[] = []
     solver.run(solutions, limit)
     return { count: solutions.length, solutions }
@@ -117,6 +122,7 @@ class Dsu {
 
 class Solver {
     private readonly puzzle: Puzzle
+    private readonly hint: Board | null
     private readonly n: number
     private readonly rows: number
     private readonly cols: number
@@ -131,8 +137,9 @@ class Solver {
     private decided: number
     private valid: boolean
 
-    constructor(puzzle: Puzzle) {
+    constructor(puzzle: Puzzle, hint?: Board) {
         this.puzzle = puzzle
+        this.hint = hint ?? null
         this.rows = puzzle.rows
         this.cols = puzzle.cols
         this.n = puzzle.rows * puzzle.cols
@@ -314,6 +321,16 @@ class Solver {
         if (rowNeed >= 1 && colNeed >= 1 && rowNeed <= rowLeft && colNeed <= colLeft) {
             for (const pid of this.dynamicCandidates(i)) {
                 opts.push(pid)
+            }
+        }
+
+        // Value ordering: try the known solution's value for this cell first.
+        if (this.hint && opts.length > 1) {
+            const preferred = this.hint[i]
+            const at = opts.indexOf(preferred)
+            if (at > 0) {
+                opts.splice(at, 1)
+                opts.unshift(preferred)
             }
         }
 
