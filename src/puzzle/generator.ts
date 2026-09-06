@@ -46,8 +46,6 @@ export interface GenerationCounts {
     pathAttempts: number
     /** Attempts rejected: findPath found nothing, or the board had bad line counts. */
     pathsRejected: number
-    /** True when the deterministic snake fallback was used. */
-    usedFallback: boolean
     /** Clue candidates considered for stripping (track cells minus exits). */
     clueCandidates: number
     /** Clues that survived stripping — each removal here was rejected (non-unique). */
@@ -107,7 +105,6 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
     const counts: GenerationCounts = {
         pathAttempts: 0,
         pathsRejected: 0,
-        usedFallback: false,
         clueCandidates: 0,
         cluesKept: 0,
         cluesRemoved: 0,
@@ -191,8 +188,9 @@ function randomPathSolution(
     const total = rows * cols
     const minLen = Math.max(3, Math.floor(total * (0.35 + 0.35 * rng())))
 
-    const MAX_RANDOM_PATH_ATTEMPTS = 50
-    for (let attempt = 0; attempt < MAX_RANDOM_PATH_ATTEMPTS; attempt++) {
+    // Keep drawing random paths until one has acceptable line counts. A full
+    // self-avoiding walk always exists, so this terminates.
+    while (true) {
         if (counts) counts.pathAttempts++
         const path = time(timer, 'findPath', () => findPath(rows, cols, rng, minLen))
         if (path && path.length >= 2) {
@@ -204,18 +202,6 @@ function randomPathSolution(
         }
         if (counts) counts.pathsRejected++
     }
-
-    // Fallback: full snake path covering every cell (no empty or single-cell lines).
-    if (counts) counts.usedFallback = true
-    const path: number[] = []
-    for (let r = 0; r < rows; r++) {
-        if (r % 2 === 0) {
-            for (let c = 0; c < cols; c++) path.push(indexOf(r, c, cols))
-        } else {
-            for (let c = cols - 1; c >= 0; c--) path.push(indexOf(r, c, cols))
-        }
-    }
-    return time(timer, 'stampPath', () => stampPath(rows, cols, path, rng))
 }
 
 /** True when the board's line counts are unacceptable: any empty row or

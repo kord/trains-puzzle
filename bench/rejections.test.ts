@@ -10,12 +10,11 @@ describe('generation rejections', () => {
         console.log('\nGeneration rejection stats — 10 seeds per size (averages)\n')
         // eslint-disable-next-line no-console
         console.log(
-            'Size  attempts  pathRej  fallbacks  candidates  cluesKept  cluesRemoved',
+            'Size  attempts  pathRej  candidates  cluesKept  cluesRemoved',
         )
         for (const size of SIZES) {
             let attempts = 0
             let pathRej = 0
-            let fallbacks = 0
             let candidates = 0
             let kept = 0
             let removed = 0
@@ -24,7 +23,6 @@ describe('generation rejections', () => {
                 if (!timing) continue
                 attempts += timing.counts.pathAttempts
                 pathRej += timing.counts.pathsRejected
-                if (timing.counts.usedFallback) fallbacks++
                 candidates += timing.counts.clueCandidates
                 kept += timing.counts.cluesKept
                 removed += timing.counts.cluesRemoved
@@ -33,7 +31,7 @@ describe('generation rejections', () => {
             const avg = (x: number) => (x / n).toFixed(1)
             // eslint-disable-next-line no-console
             console.log(
-                `${String(size).padStart(4)}  ${String(avg(attempts)).padStart(8)}  ${String(avg(pathRej)).padStart(7)}  ${String(fallbacks).padStart(9)}  ${String(avg(candidates)).padStart(10)}  ${String(avg(kept)).padStart(9)}  ${String(avg(removed)).padStart(12)}`,
+                `${String(size).padStart(4)}  ${String(avg(attempts)).padStart(8)}  ${String(avg(pathRej)).padStart(7)}  ${String(avg(candidates)).padStart(10)}  ${String(avg(kept)).padStart(9)}  ${String(avg(removed)).padStart(12)}`,
             )
         }
         // eslint-disable-next-line no-console
