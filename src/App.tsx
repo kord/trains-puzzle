@@ -54,7 +54,7 @@ export default function App() {
 
 
       <p className="hint">
-        Rules: Lay down the right number of tracks in each row and column to connect the provided rail segments. All rails must be connected and there can be no dead ends.
+        Rules: Lay down the right number of tracks in each row and column to connect the provided rail segments.
       </p>
       <p className="hint">
         Left click to mark dots where you believe the train tracks go. Right click to mark empty cells (X). Left click again to cycle through pieces. Drag to paint. Right drag from an X to erase.
