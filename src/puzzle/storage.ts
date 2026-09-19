@@ -58,7 +58,3 @@ export function getSolvedDates(storage: StorageLike, size: number): string[] {
         return []
     }
 }
-
-export function emptyUserCells(n: number): UserCell[] {
-    return new Array<UserCell>(n).fill('blank')
-}

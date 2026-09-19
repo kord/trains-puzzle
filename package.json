@@ -1,7 +1,10 @@
 {
   "name": "trains-puzzle",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "A Tracks logic puzzle: draw a single continuous railway that satisfies the row and column counts.",
+  "license": "MIT",
+  "homepage": "https://traintracks.therestinmotion.com/",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +15,7 @@
     "bench": "vitest run --config bench.config.ts --disableConsoleIntercept bench/bench-generate.test.ts",
     "compare": "vitest run --config bench.config.ts --disableConsoleIntercept bench/compare.test.ts",
     "profile": "vitest run --config bench.config.ts --disableConsoleIntercept bench/profile.test.ts",
+    "rejections": "vitest run --config bench.config.ts --disableConsoleIntercept bench/rejections.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

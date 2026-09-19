@@ -1,3 +1,5 @@
+/* Board palette layers on top of the base palette in index.css; the dark
+   overrides follow the same data-theme switch. */
 :root {
   --track: #3a3542;
   --track-soft: #b8b2c2;
@@ -10,13 +12,11 @@
   --invalid-bg: rgba(214, 69, 69, 0.12);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --track: #e8e4f0;
-    --track-soft: #7a7488;
-    --clue-bg: rgba(255, 107, 107, 0.14);
-    --invalid-bg: rgba(230, 80, 80, 0.18);
-  }
+:root[data-theme='dark'] {
+  --track: #e8e4f0;
+  --track-soft: #7a7488;
+  --clue-bg: rgba(255, 107, 107, 0.14);
+  --invalid-bg: rgba(230, 80, 80, 0.18);
 }
 
 .app {
@@ -25,6 +25,52 @@
   align-items: center;
   gap: 20px;
   padding: 24px 16px 56px;
+}
+
+/* Floating light/dark switch, fixed to the top right of the viewport. Sits
+   below .win-overlay (z-index 100) so the win dialog still covers it. */
+.theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 90;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.theme-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 480px) {
+  .theme-toggle {
+    top: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .theme-toggle svg {
+    width: 17px;
+    height: 17px;
+  }
 }
 
 .app-header {
@@ -209,10 +255,9 @@
   stroke-linecap: round;
 }
 
-@media (prefers-color-scheme: dark) {
-  .glyph-piece {
-    filter: invert(1);
-  }
+/* The track piece assets are dark line art; invert them for the dark palette. */
+:root[data-theme='dark'] .glyph-piece {
+  filter: invert(1);
 }
 
 .date-wrap {

@@ -1,6 +1,6 @@
-// Puzzle generation: build a random single path between two boundary exits,
-// derive the row/column counts, then greedily add the smallest practical set
-// of clue cells that makes the puzzle uniquely solvable.
+// Puzzle generation: build a random self-avoiding path between two boundary
+// exits, derive the row/column counts, then strip clues away — starting from
+// every track cell as a clue — while the puzzle stays uniquely solvable.
 
 import {
     DIRS,

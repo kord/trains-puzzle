@@ -44,7 +44,7 @@ function randomSeed(): number {
     return (Math.random() * 0xffffffff) >>> 0
 }
 
-/** Deterministic per-day seed, mirroring `dailyPuzzleFor` in `puzzle/daily.ts`. */
+/** Deterministic per-day seed: same size + date gives the same puzzle. */
 function dailySeed(size: number, date: string): number {
     return dateToSeed(`${size}:${date}`)
 }

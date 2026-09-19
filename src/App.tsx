@@ -1,5 +1,6 @@
 import './App.css'
 import { Board } from './components/Board'
+import { ThemeToggle } from './components/ThemeToggle'
 import { Toolbar } from './components/Toolbar'
 import { WinOverlay } from './components/WinOverlay'
 import { useGameSession } from './game/useGameSession'
@@ -9,6 +10,8 @@ export default function App() {
 
   return (
     <div className="app">
+      <ThemeToggle />
+
       <header className="app-header">
         <h1>Train Tracks</h1>
         <Toolbar
