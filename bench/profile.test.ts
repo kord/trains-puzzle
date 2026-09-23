@@ -34,7 +34,7 @@ describe('generation profile', () => {
                 // eslint-disable-next-line no-console
                 console.log(
                     `clues: ${timing.counts.clueCandidates} candidates, ${timing.counts.cluesRemoved} removed, ` +
-                        `${timing.counts.cluesKept} kept, ${timing.counts.checksAbandoned} checks abandoned`,
+                    `${timing.counts.cluesKept} kept, ${timing.counts.checksAbandoned} checks abandoned`,
                 )
                 // eslint-disable-next-line no-console
                 console.log('phase            total(ms)  calls    max(ms)   share')
