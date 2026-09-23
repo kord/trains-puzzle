@@ -58,10 +58,10 @@ describe('strip-loop A/B', () => {
                 `${String(size).padStart(2)}x${size}  min ${Math.round(Math.min(...times)).toString().padStart(4)}  mean ${Math.round(mean)
                     .toString()
                     .padStart(4)}  max ${Math.round(Math.max(...times)).toString().padStart(5)}  total ${Math.round(
-                    times.reduce((a, b) => a + b, 0),
-                )
-                    .toString()
-                    .padStart(5)}`,
+                        times.reduce((a, b) => a + b, 0),
+                    )
+                        .toString()
+                        .padStart(5)}`,
             )
             // eslint-disable-next-line no-console
             console.log(`      ${digests.join(' ')}`)
