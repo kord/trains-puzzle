@@ -4,7 +4,7 @@
 // change: flip `DEFAULT_BACKEND` below, call `setSolverBackend()` at startup,
 // or set the `SOLVER` env var in Node (the bench scripts do this).
 
-import { countSolutions as countCsp, hasAlternativeSolution } from './solver'
+import { countSolutions as countCsp, checkClueRemoval, type RemovalVerdict } from './solver'
 import { createIncrementalUniqueness } from './satsolver'
 import { exitDirsAt, indexOf } from './model'
 import type { Board, Clue, Puzzle } from './types'
@@ -27,6 +27,15 @@ export function solverBackend(): SolverKind {
 }
 
 /**
+ * Cap on search nodes per clue-removal check. Only the pathological checks on
+ * larger boards come anywhere near it: the worst check observed at 10x10 uses
+ * roughly 15k nodes, and hitting the cap costs a clue rather than correctness
+ * (see `checkClueRemoval`). At 11x11 this turns a 194s generation into 18s; a
+ * tighter cap trades more clues for less time.
+ */
+const CHECK_NODE_BUDGET = 100_000
+
+/**
  * A uniqueness oracle used by the generator's strip loop.
  *
  * `canRemoveClue` is the fast path the loop actually runs; `isUnique` is the
@@ -37,12 +46,13 @@ export interface UniquenessChecker {
     /** True when the puzzle is unique with only the given clue cells active. */
     isUnique(activeCells: Iterable<number>): boolean
     /**
-     * True when dropping the clue at `cell` still leaves the puzzle uniquely
-     * solvable. `activeCells` is the clue set *after* the removal; the caller
-     * guarantees the set *before* it was unique, which is what makes the
-     * counterexample shortcut in `hasAlternativeSolution` exact.
+     * Whether the clue at `cell` can be dropped. `activeCells` is the clue set
+     * *after* the removal; the caller guarantees the set *before* it was unique,
+     * which is what makes the counterexample shortcut in `checkClueRemoval`
+     * exact. 'unknown' means the check ran out of its node budget, which the
+     * caller must treat as "keep the clue".
      */
-    canRemoveClue(activeCells: Iterable<number>, cell: number): boolean
+    canRemoveClue(activeCells: Iterable<number>, cell: number): RemovalVerdict
 }
 
 /** CSP checker: rebuilds the clue set from the active cells on each call. */
@@ -67,8 +77,8 @@ function cspChecker(puzzle: Puzzle, solution: Board): UniquenessChecker {
             // Value-order the search with the known solution.
             return countCsp(cluesFor(activeCells), 2, solution).count === 1
         },
-        canRemoveClue(activeCells: Iterable<number>, cell: number): boolean {
-            return !hasAlternativeSolution(cluesFor(activeCells), solution, cell)
+        canRemoveClue(activeCells: Iterable<number>, cell: number): RemovalVerdict {
+            return checkClueRemoval(cluesFor(activeCells), solution, cell, CHECK_NODE_BUDGET)
         },
     }
 }

@@ -52,6 +52,11 @@ export interface GenerationCounts {
     cluesKept: number
     /** Clues successfully removed while keeping the puzzle unique. */
     cluesRemoved: number
+    /**
+     * Removal checks abandoned on their node budget. Each one keeps a clue that
+     * a longer search might have removed, and only happens on larger boards.
+     */
+    checksAbandoned: number
 }
 
 /** Per-phase timing breakdown for a `debug` generation. */
@@ -108,6 +113,7 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
         clueCandidates: 0,
         cluesKept: 0,
         cluesRemoved: 0,
+        checksAbandoned: 0,
     }
     const solution = time(timer, 'randomPathSolution', () => randomPathSolution(spec.rows, spec.cols, rng, timer, counts))
 
@@ -161,8 +167,9 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
         const active = new Set<number>(candidates)
         for (const cell of shuffle(rng, candidates)) {
             active.delete(cell)
-            const removable = time(timer, 'uniquenessCheck', () => checker.canRemoveClue(active, cell))
-            if (!removable) active.add(cell)
+            const verdict = time(timer, 'uniquenessCheck', () => checker.canRemoveClue(active, cell))
+            if (verdict === 'unknown') counts.checksAbandoned++
+            if (verdict !== 'unique') active.add(cell)
         }
         counts.cluesKept = active.size
         counts.cluesRemoved = candidates.length - active.size

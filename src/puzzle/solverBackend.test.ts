@@ -87,9 +87,10 @@ describe('createUniquenessChecker', () => {
             for (const cell of cells) {
                 const reduced = new Set(active)
                 reduced.delete(cell)
-                const fast = checker.canRemoveClue(reduced, cell)
-                expect(fast, `backend=${kind} cell=${cell}`).toBe(checker.isUnique(reduced))
-                if (fast) active.delete(cell)
+                const verdict = checker.canRemoveClue(reduced, cell)
+                const expected = checker.isUnique(reduced) ? 'unique' : 'multiple'
+                expect(verdict, `backend=${kind} cell=${cell}`).toBe(expected)
+                if (verdict === 'unique') active.delete(cell)
             }
 
             // A full strip must still leave a uniquely solvable puzzle.

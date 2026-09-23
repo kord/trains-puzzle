@@ -29,6 +29,8 @@ export const UNSOLVABLE = 0
 export interface CountResult {
     count: number
     solutions: Board[]
+    /** True when a node budget cut the search short, so `count` is a lower bound. */
+    truncated: boolean
 }
 
 export interface ClassifyResult {
@@ -58,37 +60,64 @@ export interface ValueExclusion {
  * known solution can be passed as `hint` to value-order the search: each cell
  * tries the hint's value first, so the solver finds that solution immediately
  * and spends the rest of its time looking for another. `exclude` removes a
- * single value at a single cell from the search.
+ * single value at a single cell from the search, and `nodeBudget` caps how many
+ * search nodes may be visited before the search gives up.
  */
 export function countSolutions(
     puzzle: Puzzle,
     limit: number,
     hint?: Board,
     exclude?: ValueExclusion,
+    nodeBudget?: number,
 ): CountResult {
-    const solver = new Solver(puzzle, hint, exclude)
+    const solver = new Solver(puzzle, hint, exclude, nodeBudget)
     const solutions: Board[] = []
     solver.run(solutions, limit)
-    return { count: solutions.length, solutions }
+    return { count: solutions.length, solutions, truncated: solver.searchTruncated }
 }
 
+/** What a clue-removal check concluded. */
+export type RemovalVerdict =
+    /** The puzzle stays uniquely solvable without the clue. */
+    | 'unique'
+    /** Dropping the clue admits a second solution, so it is load-bearing. */
+    | 'multiple'
+    /** The node budget ran out: treat as "keep the clue". */
+    | 'unknown'
+
 /**
- * Whether `puzzle` has a solution that differs from `solution` at `cell` —
- * that is, whether the clue at `cell` is load-bearing.
+ * Whether the clue at `cell` can be dropped — the question the strip loop asks
+ * once per candidate clue.
  *
- * This is the exact test for "can this clue be dropped?" whenever the clue set
- * still *including* that clue determines `solution` uniquely (which the strip
- * loop maintains): any other solution of the reduced set must agree with every
- * clue that remains, so the only cell where it can differ from `solution` is
- * `cell` itself. Asking for that one counterexample is equivalent to asking
- * whether the reduced puzzle is non-unique, but the search skips the entire
- * `cell = solution[cell]` subtree instead of exploring it and rejecting it.
+ * This is the exact test whenever the clue set *including* that clue determines
+ * `solution` uniquely (which the strip loop maintains): any other solution of
+ * the reduced set must agree with every clue that remains, so the only cell
+ * where it can differ from `solution` is `cell` itself. Asking for that one
+ * counterexample is equivalent to asking whether the reduced puzzle is
+ * non-unique, but the search skips the entire `cell = solution[cell]` subtree
+ * instead of exploring it and rejecting it.
+ *
+ * `nodeBudget` caps the check. On 11x11 and up a single check can otherwise run
+ * for minutes: proving uniqueness means exhausting a space that grows sharply
+ * as clues come off, so a handful of checks dominate the mean and the maximum.
+ * Capping is safe because 'unknown' is not a guess — the clue being kept is one
+ * that was already consistent with the solution, and a superset of a unique
+ * clue set is still unique, so the puzzle only ends up slightly less minimal.
+ * Capping by *nodes* rather than milliseconds keeps the outcome identical on
+ * every machine, so a given seed still produces the same puzzle everywhere.
  */
-export function hasAlternativeSolution(puzzle: Puzzle, solution: Board, cell: number): boolean {
+export function checkClueRemoval(
+    puzzle: Puzzle,
+    solution: Board,
+    cell: number,
+    nodeBudget?: number,
+): RemovalVerdict {
     // The known solution is still the best value ordering for the other cells:
     // it steers the search at the assignments closest to a real solution, where
     // the count and connectivity checks reject the fastest.
-    return countSolutions(puzzle, 1, solution, { index: cell, exclude: solution[cell] }).count > 0
+    const result = countSolutions(puzzle, 1, solution, { index: cell, exclude: solution[cell] }, nodeBudget)
+    if (result.count > 0) return 'multiple'
+    return result.truncated ? 'unknown' : 'unique'
 }
 
 const EMPTY_MARK = -1
@@ -159,6 +188,7 @@ class Solver {
     private readonly puzzle: Puzzle
     private readonly hint: Board | null
     private readonly exclude: ValueExclusion | null
+    private readonly budget: number
     private readonly n: number
     private readonly rows: number
     private readonly cols: number
@@ -172,11 +202,14 @@ class Solver {
     private dsu: Dsu
     private decided: number
     private valid: boolean
+    private nodes: number
+    private cutOff: boolean
 
-    constructor(puzzle: Puzzle, hint?: Board, exclude?: ValueExclusion) {
+    constructor(puzzle: Puzzle, hint?: Board, exclude?: ValueExclusion, nodeBudget?: number) {
         this.puzzle = puzzle
         this.hint = hint ?? null
         this.exclude = exclude ?? null
+        this.budget = nodeBudget ?? Number.POSITIVE_INFINITY
         this.rows = puzzle.rows
         this.cols = puzzle.cols
         this.n = puzzle.rows * puzzle.cols
@@ -190,6 +223,8 @@ class Solver {
         this.dsu = new Dsu(this.n)
         this.decided = 0
         this.valid = true
+        this.nodes = 0
+        this.cutOff = false
 
         this.setupClues()
         if (this.valid) this.setupStaticCandidates()
@@ -275,6 +310,11 @@ class Solver {
         this.search(solutions, limit)
     }
 
+    /** True when the node budget stopped the search before it finished. */
+    get searchTruncated(): boolean {
+        return this.cutOff
+    }
+
     private feasible(): boolean {
         for (let r = 0; r < this.rows; r++) {
             const need = this.puzzle.rowCounts[r] - this.rowPlaced[r]
@@ -289,6 +329,12 @@ class Solver {
 
     private search(solutions: Board[], limit: number): void {
         if (solutions.length >= limit) return
+
+        this.nodes++
+        if (this.nodes > this.budget) {
+            this.cutOff = true
+            return
+        }
 
         if (!this.feasible()) return
 

@@ -4,15 +4,27 @@
 // change did not alter which puzzles come out.
 //
 //   npx vitest run --config bench.config.ts bench/strip-ab.test.ts
-//   $env:SOLVER='sat'   # to fingerprint/bench the SAT backend instead
+//   $env:SIZES='10,11'; $env:SEEDS='1,2,3'   # pick the boards to measure
+//   $env:SOLVER='sat'                        # SAT backend instead of CSP
 import { describe, it } from 'vitest'
 import { generate, type GeneratedPuzzle } from '../src/puzzle/generator'
 import { setSolverBackend, solverBackend } from '../src/puzzle/solverBackend'
 
 setSolverBackend(process.env.SOLVER === 'sat' ? 'sat' : 'csp')
 
-const SIZES = [6, 7, 8, 9, 10]
-const SEEDS = [1, 2, 3, 4, 5, 6]
+/** Read `NAME=1,2,3` from the environment, else use the fallback. */
+function envList(name: string, fallback: number[]): number[] {
+    const raw = process.env[name]
+    if (!raw) return fallback
+    const values = raw
+        .split(',')
+        .map((part) => Number(part.trim()))
+        .filter((n) => Number.isInteger(n) && n > 0)
+    return values.length > 0 ? values : fallback
+}
+
+const SIZES = envList('SIZES', [6, 7, 8, 9, 10])
+const SEEDS = envList('SEEDS', [1, 2, 3, 4, 5, 6])
 
 function fnv1a(text: string): string {
     let h = 0x811c9dc5
@@ -42,27 +54,36 @@ function digest({ puzzle, solution }: GeneratedPuzzle): string {
 describe('strip-loop A/B', () => {
     it('prints per-size timings and puzzle digests', () => {
         // eslint-disable-next-line no-console
-        console.log(`\nbackend: ${solverBackend()}`)
+        console.log(`\nbackend: ${solverBackend()}  sizes: ${SIZES.join(',')}  seeds: ${SEEDS.join(',')}`)
         for (const size of SIZES) {
             const times: number[] = []
             const digests: string[] = []
+            let failed = 0
             for (const seed of SEEDS) {
                 const start = performance.now()
-                const generated = generate({ rows: size, cols: size, seed })
-                times.push(performance.now() - start)
-                digests.push(digest(generated))
+                try {
+                    const generated = generate({ rows: size, cols: size, seed })
+                    times.push(performance.now() - start)
+                    digests.push(digest(generated))
+                } catch (err) {
+                    // e.g. MiniSat's fixed heap aborting on the SAT backend.
+                    failed++
+                    times.push(performance.now() - start)
+                    digests.push(`FAILED:${String(err).split('\n')[0].slice(0, 50)}`)
+                }
             }
-            const mean = times.reduce((a, b) => a + b, 0) / times.length
+            const total = times.reduce((a, b) => a + b, 0)
+            const mean = total / times.length
             // eslint-disable-next-line no-console
             console.log(
-                `${String(size).padStart(2)}x${size}  min ${Math.round(Math.min(...times)).toString().padStart(4)}  mean ${Math.round(mean)
+                `${String(size).padStart(2)}x${size}  min ${Math.round(Math.min(...times)).toString().padStart(5)}  mean ${Math.round(mean)
                     .toString()
-                    .padStart(4)}  max ${Math.round(Math.max(...times)).toString().padStart(5)}  total ${Math.round(
-                        times.reduce((a, b) => a + b, 0),
-                    )
+                    .padStart(5)}  max ${Math.round(Math.max(...times)).toString().padStart(6)}  total ${Math.round(total)
                         .toString()
-                        .padStart(5)}`,
+                        .padStart(6)}  failed ${failed}`,
             )
+            // eslint-disable-next-line no-console
+            console.log(`      per seed: ${times.map((ms) => Math.round(ms)).join(', ')}`)
             // eslint-disable-next-line no-console
             console.log(`      ${digests.join(' ')}`)
         }

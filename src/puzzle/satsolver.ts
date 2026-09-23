@@ -11,6 +11,7 @@
 
 import Logic from 'logic-solver'
 import type { Board, PieceId, Port, Puzzle } from './types'
+import type { RemovalVerdict } from './solver'
 import { DIR_DELTA, DIRS, DIR_TO_PORT, OPPOSITE_PORT } from './types'
 import { EMPTY, exitDirsAt, hasPort, indexOf, isValidSolution, pieceMask } from './model'
 export const UNIQUE = 1
@@ -129,12 +130,12 @@ export interface IncrementalUniqueness {
     /** True when the puzzle is uniquely solvable with only `activeCells` clues. */
     isUnique(activeCells: Iterable<number>): boolean
     /**
-     * True when dropping the clue at `cell` still leaves the puzzle uniquely
-     * solvable. `activeCells` is the clue set *after* the removal; the caller
-     * guarantees the set *before* it was unique, which is what makes the
-     * "cell differs from the known solution" shortcut exact.
+     * Whether the clue at `cell` can be dropped. `activeCells` is the clue set
+     * *after* the removal; the caller guarantees the set *before* it was unique,
+     * which is what makes the "cell differs from the known solution" shortcut
+     * exact. MiniSat searches to completion, so this never reports 'unknown'.
      */
-    canRemoveClue(activeCells: Iterable<number>, cell: number): boolean
+    canRemoveClue(activeCells: Iterable<number>, cell: number): RemovalVerdict
 }
 
 /**
@@ -193,10 +194,10 @@ export function createIncrementalUniqueness(
             lits.push(Logic.not(Logic.and(...notKnownSolution)))
             return solver.solveAssuming(Logic.and(...lits)) === null
         },
-        canRemoveClue(activeCells: Iterable<number>, cell: number): boolean {
+        canRemoveClue(activeCells: Iterable<number>, cell: number): RemovalVerdict {
             const lits = activeLits(activeCells)
             lits.push(Logic.not(cellVar(cell, solution[cell])))
-            return solver.solveAssuming(Logic.and(...lits)) === null
+            return solver.solveAssuming(Logic.and(...lits)) === null ? 'unique' : 'multiple'
         },
     }
 }

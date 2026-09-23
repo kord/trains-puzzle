@@ -88,6 +88,14 @@ flowchart LR
    with that one cell different? That is exactly equivalent to a full uniqueness
    count, but the search skips the whole "that cell keeps its known value"
    subtree instead of exploring it and rejecting it.
+5. **Cap the work per clue.** Proving that no such counterexample exists is the
+   expensive direction, and from 11x11 up a handful of checks can run for
+   minutes each. Every check is therefore capped at a fixed number of search
+   nodes; if the cap is reached the clue is kept. That is always safe — the clue
+   is already consistent with the solution, and a superset of a unique clue set
+   is still unique — so the puzzle only ends up slightly less minimal. Counting
+   nodes rather than milliseconds keeps a seed producing the same puzzle on
+   every machine, and the cap never triggers on the shipped sizes.
 
 Generation is self-checked: `generator.test.ts` asserts that every generated
 puzzle is uniquely solvable, that its clues match the solution, and that the
@@ -173,7 +181,8 @@ candidate clue. The `bench/` scripts measure that.
 
 - `npm run bench` — generation times (min/mean/max) for sizes 6–10
 - `npm run compare` — CSP vs SAT backends on identical seeds
-- `npm run profile` — per-phase breakdown (path finding, clue stripping, solver)
+- `npm run profile` — per-phase breakdown (path finding, clue stripping, solver);
+  `SIZES` and `SEEDS` pick the boards, e.g. `$env:SIZES='11'`
 - `npm run rejections` — how many candidate paths/clues get rejected, and why
 
 Set `SOLVER=sat` (PowerShell: `$env:SOLVER='sat'`) to benchmark the SAT backend.
@@ -181,6 +190,10 @@ Set `SOLVER=sat` (PowerShell: `$env:SOLVER='sat'`) to benchmark the SAT backend.
 Rough numbers on a desktop machine, CSP backend: 6x6 in under 10 ms, 9x9 in
 two or three hundred milliseconds, and 10x10 in under a second. The SAT backend
 is competitive on the larger boards but slower overall, so CSP stays the default.
+
+11x11 is where the clue-stripping loop starts to bite: before the per-check node
+cap the mean was ~56 s and the worst seed ~190 s, and it is ~8 s (worst ~18 s)
+after. Below that the cap never triggers.
 
 ## Getting started
 

@@ -5,15 +5,21 @@ import { setSolverBackend, solverBackend } from '../src/puzzle/solverBackend'
 // Choose the backend via the SOLVER env var (csp | sat); defaults to csp.
 setSolverBackend(process.env.SOLVER === 'sat' ? 'sat' : 'csp')
 
-// Deterministic cases; sizes 9 and 10 are where generation is slowest.
-const CASES: Array<[number, number]> = [
-    [9, 1],
-    [9, 2],
-    [9, 3],
-    [10, 1],
-    [10, 2],
-    [10, 3],
-]
+/** Read `NAME=1,2,3` from the environment, else use the fallback. */
+function envList(name: string, fallback: number[]): number[] {
+    const raw = process.env[name]
+    if (!raw) return fallback
+    const values = raw
+        .split(',')
+        .map((part) => Number(part.trim()))
+        .filter((n) => Number.isInteger(n) && n > 0)
+    return values.length > 0 ? values : fallback
+}
+
+// Sizes 9 and 10 are where generation is slowest; 11+ shows the tail.
+const SIZES = envList('SIZES', [9, 10])
+const SEEDS = envList('SEEDS', [1, 2, 3])
+const CASES: Array<[number, number]> = SIZES.flatMap((size) => SEEDS.map((seed): [number, number] => [size, seed]))
 
 describe('generation profile', () => {
     it('prints per-phase timing breakdown', () => {
@@ -25,6 +31,11 @@ describe('generation profile', () => {
                 if (!timing) continue
                 // eslint-disable-next-line no-console
                 console.log(`\n=== ${size}x${size} seed ${seed} — total ${Math.round(timing.totalMs)}ms ===`)
+                // eslint-disable-next-line no-console
+                console.log(
+                    `clues: ${timing.counts.clueCandidates} candidates, ${timing.counts.cluesRemoved} removed, ` +
+                        `${timing.counts.cluesKept} kept, ${timing.counts.checksAbandoned} checks abandoned`,
+                )
                 // eslint-disable-next-line no-console
                 console.log('phase            total(ms)  calls    max(ms)   share')
                 for (const p of timing.phases) {
