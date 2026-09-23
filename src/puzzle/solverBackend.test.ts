@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { generate } from './generator'
 import { createUniquenessChecker, setSolverBackend, solverBackend } from './solverBackend'
-import { exitDirsAt, indexOf } from './model'
-import type { Puzzle } from './types'
+import { EMPTY, colOf, exitDirsAt, indexOf, rowOf } from './model'
+import type { Board, PieceId, Puzzle } from './types'
 
 afterEach(() => setSolverBackend('csp'))
 
@@ -15,6 +15,24 @@ function candidateCells(puzzle: Puzzle): number[] {
         }
     }
     return cells
+}
+
+/**
+ * Rebuild the generator's *starting* clue set: every track cell of the
+ * solution is a clue, so the strip loop can be replayed from the top.
+ */
+function fullClueSet(puzzle: Puzzle, solution: Board): { puzzle: Puzzle; cells: number[] } {
+    const { cols } = puzzle
+    const clueCells = new Set(puzzle.clues.map((c) => indexOf(c.row, c.col, cols)))
+    const clues = [...puzzle.clues]
+    const cells: number[] = []
+    for (let i = 0; i < solution.length; i++) {
+        const piece = solution[i]
+        if (piece === EMPTY || clueCells.has(i)) continue
+        clues.push({ row: rowOf(i, cols), col: colOf(i, cols), piece: piece as PieceId })
+        cells.push(i)
+    }
+    return { puzzle: { ...puzzle, clues }, cells }
 }
 
 describe('solver backend', () => {
@@ -48,5 +66,34 @@ describe('createUniquenessChecker', () => {
         setSolverBackend('sat')
         const sat = createUniquenessChecker(puzzle, solution).isUnique([])
         expect(csp).toBe(sat)
+    })
+
+    // canRemoveClue answers a narrower question than isUnique ("is there a
+    // solution differing at this one cell?"), which is only equivalent while
+    // the clue set *including* that clue is unique. Replaying the strip loop
+    // checks the shortcut against the full oracle at every step.
+    it('matches the full uniqueness oracle at every step of a strip', () => {
+        const generated = generate({ rows: 6, cols: 6, seed: 7 })
+        const { puzzle: full, cells } = fullClueSet(generated.puzzle, generated.solution)
+        expect(cells.length).toBeGreaterThan(10)
+
+        for (const kind of ['csp', 'sat'] as const) {
+            setSolverBackend(kind)
+            const checker = createUniquenessChecker(full, generated.solution)
+            const active = new Set<number>(cells)
+            // Every track cell is a clue to begin with, which is unique.
+            expect(checker.isUnique(active), `backend=${kind} start`).toBe(true)
+
+            for (const cell of cells) {
+                const reduced = new Set(active)
+                reduced.delete(cell)
+                const fast = checker.canRemoveClue(reduced, cell)
+                expect(fast, `backend=${kind} cell=${cell}`).toBe(checker.isUnique(reduced))
+                if (fast) active.delete(cell)
+            }
+
+            // A full strip must still leave a uniquely solvable puzzle.
+            expect(checker.isUnique(active), `backend=${kind} end`).toBe(true)
+        }
     })
 })

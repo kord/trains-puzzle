@@ -161,8 +161,8 @@ export function generate(spec: GenerateSpec): GeneratedPuzzle {
         const active = new Set<number>(candidates)
         for (const cell of shuffle(rng, candidates)) {
             active.delete(cell)
-            const unique = time(timer, 'uniquenessCheck', () => checker.isUnique(active))
-            if (!unique) active.add(cell)
+            const removable = time(timer, 'uniquenessCheck', () => checker.canRemoveClue(active, cell))
+            if (!removable) active.add(cell)
         }
         counts.cluesKept = active.size
         counts.cluesRemoved = candidates.length - active.size

@@ -44,16 +44,51 @@ export function classify(puzzle: Puzzle, hint?: Board): ClassifyResult {
 }
 
 /**
+ * One value excluded at one cell: the counterexample constraint "this cell is
+ * not this value". Used to ask "does a solution exist that differs from the
+ * known one at this cell?"
+ */
+export interface ValueExclusion {
+    index: number
+    exclude: number
+}
+
+/**
  * Count solutions up to `limit` (stop early once the limit is reached). A
  * known solution can be passed as `hint` to value-order the search: each cell
  * tries the hint's value first, so the solver finds that solution immediately
- * and spends the rest of its time looking for another.
+ * and spends the rest of its time looking for another. `exclude` removes a
+ * single value at a single cell from the search.
  */
-export function countSolutions(puzzle: Puzzle, limit: number, hint?: Board): CountResult {
-    const solver = new Solver(puzzle, hint)
+export function countSolutions(
+    puzzle: Puzzle,
+    limit: number,
+    hint?: Board,
+    exclude?: ValueExclusion,
+): CountResult {
+    const solver = new Solver(puzzle, hint, exclude)
     const solutions: Board[] = []
     solver.run(solutions, limit)
     return { count: solutions.length, solutions }
+}
+
+/**
+ * Whether `puzzle` has a solution that differs from `solution` at `cell` —
+ * that is, whether the clue at `cell` is load-bearing.
+ *
+ * This is the exact test for "can this clue be dropped?" whenever the clue set
+ * still *including* that clue determines `solution` uniquely (which the strip
+ * loop maintains): any other solution of the reduced set must agree with every
+ * clue that remains, so the only cell where it can differ from `solution` is
+ * `cell` itself. Asking for that one counterexample is equivalent to asking
+ * whether the reduced puzzle is non-unique, but the search skips the entire
+ * `cell = solution[cell]` subtree instead of exploring it and rejecting it.
+ */
+export function hasAlternativeSolution(puzzle: Puzzle, solution: Board, cell: number): boolean {
+    // The known solution is still the best value ordering for the other cells:
+    // it steers the search at the assignments closest to a real solution, where
+    // the count and connectivity checks reject the fastest.
+    return countSolutions(puzzle, 1, solution, { index: cell, exclude: solution[cell] }).count > 0
 }
 
 const EMPTY_MARK = -1
@@ -123,6 +158,7 @@ class Dsu {
 class Solver {
     private readonly puzzle: Puzzle
     private readonly hint: Board | null
+    private readonly exclude: ValueExclusion | null
     private readonly n: number
     private readonly rows: number
     private readonly cols: number
@@ -137,9 +173,10 @@ class Solver {
     private decided: number
     private valid: boolean
 
-    constructor(puzzle: Puzzle, hint?: Board) {
+    constructor(puzzle: Puzzle, hint?: Board, exclude?: ValueExclusion) {
         this.puzzle = puzzle
         this.hint = hint ?? null
+        this.exclude = exclude ?? null
         this.rows = puzzle.rows
         this.cols = puzzle.cols
         this.n = puzzle.rows * puzzle.cols
@@ -332,6 +369,12 @@ class Solver {
                 opts.splice(at, 1)
                 opts.unshift(preferred)
             }
+        }
+
+        // Counterexample constraint: this cell may not take the excluded value.
+        if (this.exclude && this.exclude.index === i) {
+            const at = opts.indexOf(this.exclude.exclude)
+            if (at !== -1) opts.splice(at, 1)
         }
 
         return opts

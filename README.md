@@ -78,10 +78,16 @@ flowchart LR
    each removal with the solver. The result is a local-minimum clue set — in
    practice only a couple of interior clues beyond the two exits, because the
    row/column counts do most of the work.
-4. **Hint the solver.** Because the generator already knows one solution, it
-   passes that solution to the solver as a value-ordering hint: the solver tries
-   the known value first at each cell, lands on that solution immediately, and
-   spends the rest of its time only on ruling out a second one.
+4. **Hint the solver, then ask a sharper question.** The generator knows one
+   solution, so it tells the solver to try that solution's value first at every
+   cell. It also exploits a stronger fact: while the clue set still contains the
+   clue being tested, that clue set pins the solution down uniquely, so any
+   *other* solution of the reduced puzzle must agree with every clue that
+   remains — and can therefore only differ at the one cell whose clue is being
+   dropped. Testing a removal is then a single question: does a solution exist
+   with that one cell different? That is exactly equivalent to a full uniqueness
+   count, but the search skips the whole "that cell keeps its known value"
+   subtree instead of exploring it and rejecting it.
 
 Generation is self-checked: `generator.test.ts` asserts that every generated
 puzzle is uniquely solvable, that its clues match the solution, and that the
@@ -105,9 +111,10 @@ single switch in `src/puzzle/solverBackend.ts`.
   solver never enumerates disconnected or looping candidates.
 
   The version used by the generator is *incremental*: the formula is built once,
-  clues are toggled with assumption literals, and the known solution is
-  forbidden up front. That way one `solveAssuming` call decides "is there a
-  different solution?" and MiniSat reuses learned clauses between checks.
+  clues are toggled with assumption literals, and each check poses the
+  counterexample question above by assuming the tested cell away from its known
+  value — one `solveAssuming` call, with MiniSat reusing learned clauses between
+  checks.
 
   This backend is experimental (see [Benchmarks](#benchmarks)); the CSP solver is
   faster on the shipped puzzle sizes, so it stays the default.
@@ -161,8 +168,8 @@ so older records are discarded rather than misread.
 
 ## Benchmarks
 
-Generation cost is dominated by the clue-stripping loop: one uniqueness check
-per candidate clue. The `bench/` scripts measure that.
+Generation cost is dominated by the clue-stripping loop: one solver query per
+candidate clue. The `bench/` scripts measure that.
 
 - `npm run bench` — generation times (min/mean/max) for sizes 6–10
 - `npm run compare` — CSP vs SAT backends on identical seeds
@@ -171,9 +178,9 @@ per candidate clue. The `bench/` scripts measure that.
 
 Set `SOLVER=sat` (PowerShell: `$env:SOLVER='sat'`) to benchmark the SAT backend.
 
-Rough numbers on a desktop machine, CSP backend: 6x6 in well under 10 ms, 9x9 in
-a few hundred milliseconds, and 10x10 around a second. The SAT backend is
-competitive on the larger boards but slower overall, so CSP stays the default.
+Rough numbers on a desktop machine, CSP backend: 6x6 in under 10 ms, 9x9 in
+two or three hundred milliseconds, and 10x10 in under a second. The SAT backend
+is competitive on the larger boards but slower overall, so CSP stays the default.
 
 ## Getting started
 

@@ -4,7 +4,7 @@
 // change: flip `DEFAULT_BACKEND` below, call `setSolverBackend()` at startup,
 // or set the `SOLVER` env var in Node (the bench scripts do this).
 
-import { countSolutions as countCsp } from './solver'
+import { countSolutions as countCsp, hasAlternativeSolution } from './solver'
 import { createIncrementalUniqueness } from './satsolver'
 import { exitDirsAt, indexOf } from './model'
 import type { Board, Clue, Puzzle } from './types'
@@ -26,10 +26,23 @@ export function solverBackend(): SolverKind {
     return current
 }
 
-/** A uniqueness oracle used by the generator's strip loop. */
+/**
+ * A uniqueness oracle used by the generator's strip loop.
+ *
+ * `canRemoveClue` is the fast path the loop actually runs; `isUnique` is the
+ * general question it answers by a shortcut, kept as the reference that the
+ * tests check the shortcut against.
+ */
 export interface UniquenessChecker {
     /** True when the puzzle is unique with only the given clue cells active. */
     isUnique(activeCells: Iterable<number>): boolean
+    /**
+     * True when dropping the clue at `cell` still leaves the puzzle uniquely
+     * solvable. `activeCells` is the clue set *after* the removal; the caller
+     * guarantees the set *before* it was unique, which is what makes the
+     * counterexample shortcut in `hasAlternativeSolution` exact.
+     */
+    canRemoveClue(activeCells: Iterable<number>, cell: number): boolean
 }
 
 /** CSP checker: rebuilds the clue set from the active cells on each call. */
@@ -41,15 +54,21 @@ function cspChecker(puzzle: Puzzle, solution: Board): UniquenessChecker {
         if (exitDirsAt(puzzle, clue.row, clue.col).length > 0) exits.push(clue)
         else candidates.set(indexOf(clue.row, clue.col, cols), clue)
     }
+    const cluesFor = (activeCells: Iterable<number>): Puzzle => {
+        const clues = exits.slice()
+        for (const i of activeCells) {
+            const clue = candidates.get(i)
+            if (clue) clues.push(clue)
+        }
+        return { ...puzzle, clues }
+    }
     return {
         isUnique(activeCells: Iterable<number>): boolean {
-            const clues = exits.slice()
-            for (const i of activeCells) {
-                const clue = candidates.get(i)
-                if (clue) clues.push(clue)
-            }
             // Value-order the search with the known solution.
-            return countCsp({ ...puzzle, clues }, 2, solution).count === 1
+            return countCsp(cluesFor(activeCells), 2, solution).count === 1
+        },
+        canRemoveClue(activeCells: Iterable<number>, cell: number): boolean {
+            return !hasAlternativeSolution(cluesFor(activeCells), solution, cell)
         },
     }
 }

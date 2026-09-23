@@ -128,16 +128,28 @@ export function buildSolver(puzzle: Puzzle): Logic.Solver {
 export interface IncrementalUniqueness {
     /** True when the puzzle is uniquely solvable with only `activeCells` clues. */
     isUnique(activeCells: Iterable<number>): boolean
+    /**
+     * True when dropping the clue at `cell` still leaves the puzzle uniquely
+     * solvable. `activeCells` is the clue set *after* the removal; the caller
+     * guarantees the set *before* it was unique, which is what makes the
+     * "cell differs from the known solution" shortcut exact.
+     */
+    canRemoveClue(activeCells: Iterable<number>, cell: number): boolean
 }
 
 /**
  * Incremental uniqueness checker for the strip loop. The structural formula
  * is built once, exit clues stay permanent, and the other clues are toggled
  * via assumption literals, so MiniSat reuses learned clauses (row/column
- * counts, reciprocity, connectivity) across every check. The known solution
- * is permanently forbidden, so a satisfying assignment under the active clues
- * is exactly "some other solution" — one `solveAssuming` per check decides
- * uniqueness.
+ * counts, reciprocity, connectivity) across every check.
+ *
+ * Deciding whether a clue can be dropped is a counterexample question: with
+ * the clue present the puzzle is unique, so any *other* solution of the
+ * reduced puzzle has to differ from the known one at the dropped cell. So
+ * `canRemoveClue` assumes that single cell away from the known value — one
+ * unit literal, which replaces the previous encoding's giant "forbid the whole
+ * known solution" clause and prunes the same subtree up front instead of
+ * enumerating it and rejecting it.
  */
 export function createIncrementalUniqueness(
     puzzle: Puzzle,
@@ -162,18 +174,28 @@ export function createIncrementalUniqueness(
         }
     }
 
-    // Permanently block the known solution: any other model means non-unique.
-    const block: Logic.Term[] = []
-    for (let i = 0; i < n; i++) block.push(cellVar(i, solution[i]))
-    solver.forbid(Logic.and(...block))
+    const activeLits = (activeCells: Iterable<number>): Logic.Term[] => {
+        const lits: Logic.Term[] = []
+        for (const i of activeCells) {
+            const lit = clueLit.get(i)
+            if (lit) lits.push(lit)
+        }
+        return lits
+    }
+
+    // Literals blocking the known solution, for the general `isUnique` query.
+    const notKnownSolution: Logic.Term[] = []
+    for (let i = 0; i < n; i++) notKnownSolution.push(cellVar(i, solution[i]))
 
     return {
         isUnique(activeCells: Iterable<number>): boolean {
-            const lits: Logic.Term[] = []
-            for (const i of activeCells) {
-                const lit = clueLit.get(i)
-                if (lit) lits.push(lit)
-            }
+            const lits = activeLits(activeCells)
+            lits.push(Logic.not(Logic.and(...notKnownSolution)))
+            return solver.solveAssuming(Logic.and(...lits)) === null
+        },
+        canRemoveClue(activeCells: Iterable<number>, cell: number): boolean {
+            const lits = activeLits(activeCells)
+            lits.push(Logic.not(cellVar(cell, solution[cell])))
             return solver.solveAssuming(Logic.and(...lits)) === null
         },
     }
