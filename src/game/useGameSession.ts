@@ -66,7 +66,9 @@ export function useGameSession() {
         }
     }, [])
 
-    const today = todayKey()
+    // The session's day. Held in state rather than read per render so a rollover
+    // can be detected and acted on (see `checkForNewDay`).
+    const [today, setToday] = useState<string>(todayKey)
     const [mode, setMode] = useState<Mode>('daily')
     const [practiceSize, setPracticeSize] = useState<PracticeSize>(HARD_SIZE)
     const [tool, setTool] = useState<Tool>('dot')
@@ -333,9 +335,29 @@ export function useGameSession() {
         if (!practice) loadPractice(practiceSize)
     }, [practice, loadPractice, practiceSize])
 
+    /**
+     * A tab left open past midnight keeps showing the day it loaded, so the new
+     * day's puzzles are neither marked as today nor generated. The calendar is
+     * where a player goes looking for the new day, so that is where the date is
+     * re-read: a rollover moves the "today" marker and starts the new day's
+     * larger puzzles generating in the background, exactly as a fresh load would.
+     * The day being played is left alone — the player can pick the new one.
+     */
+    const checkForNewDay = useCallback(() => {
+        const current = todayKey()
+        if (current === today) return
+        setToday(current)
+        prefetchDaily(current)
+    }, [today, prefetchDaily])
+
     const toggleCalendar = useCallback(() => {
-        setCalendarOpen((open) => !open)
-    }, [])
+        if (calendarOpen) {
+            setCalendarOpen(false)
+            return
+        }
+        checkForNewDay()
+        setCalendarOpen(true)
+    }, [calendarOpen, checkForNewDay])
 
     const dismissWin = useCallback(() => {
         setShowWin(false)
